@@ -8,14 +8,25 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "keypad.h"
 #include "lab_gpio.h"
 #include "lab_timers.h"
+#include "motor_control.h"
 #include "stm32f407xx.h"
 
 /* Preprocessor Definitions */
 #define KEYPAD_DEBOUNCE_PERIOD_MS 200
+#define CODE_ENTRY_TIMEOUT_MS 5000    // Clear passcode and return to default state if there are 5 seconds between button presses
+#define CODE_LENGTH 4
+
+/* Type Definitions */
+typedef enum entry_state_t {
+    ENTRY_INACTIVE = 0,
+    ENTRY_ACTIVE,
+    ENTRY_COMPLETE
+} entry_state_t;
 
 /* File scope variables */
 static char keypad_array[4][3] = {{'1','2','3'},
@@ -23,11 +34,19 @@ static char keypad_array[4][3] = {{'1','2','3'},
                                   {'7','8','9'},
                                   {'*','0','#'}};
 
+static char correct_code[] = "2539";
+static char default_code[] = "0000";
+static char entered_code[CODE_LENGTH + 1];
+
+static int current_code_index = 0;
+
+
 static timer_t keypad_debounce_timer;
+static timer_t code_entry_timer;
 
 static bool button_press_allowed = true;
 
-static char key_pressed = '\0';
+static entry_state_t current_entry_state = ENTRY_INACTIVE;
 
 /* External Function Declarations */
 extern void EXTI1_IRQHandler(void);
@@ -37,25 +56,76 @@ extern void EXTI3_IRQHandler(void);
 
 /* Static function declarations */
 static void keypad_debounce_cb(void);
+static void code_entry_timeout_cb(void);
+static void reset_code(void);
 
 
 
 /* Functions */
+
+static void reset_code(void)
+{
+    current_entry_state = ENTRY_INACTIVE;
+    current_code_index = 0;
+    gpio_pin_clear(GPIOD, ORANGE_LED);
+    strncpy(entered_code, default_code, CODE_LENGTH + 1);
+    if (timer_is_timer_active(&code_entry_timer))
+    {
+        timer_stop_timer(&code_entry_timer);
+    }
+}
 
 static void keypad_debounce_cb(void) 
 {
     button_press_allowed = true;
 }
 
+static void evaluate_code(void)
+{
+    if (!strncmp(entered_code, correct_code, CODE_LENGTH + 1))
+    {
+        door_state_t next_state = motor_control_get_next_state();
+        motor_control_handle_state_transition(next_state);
+    }
+}
+
+
+static void code_entry_timeout_cb(void)
+{
+    reset_code();
+}
+
+/**
+* @brief Responds to a button press on the keyboard
+* By scanning to determine which row and column was pressed.
+*/
 static void keypad_button_press_handler(uint8_t column)
 {  
     uint8_t rows[4] = {R0, R1, R2, R3};
-    uint8_t row;
+    uint8_t row = 0;
+
     // Prevent further erroneous button pressed
     button_press_allowed = false;
 
+    // Transition to active state if not active
+    if (current_entry_state == ENTRY_INACTIVE)
+    {
+        current_entry_state = ENTRY_ACTIVE;
+        gpio_pin_set(GPIOD, ORANGE_LED);
+    }
+
     // Start debounce timer
     timer_start_timer(&keypad_debounce_timer);
+
+    // Start or reset code entry timer
+    if (timer_is_timer_active(&code_entry_timer))
+    {
+        timer_reset_timer(&code_entry_timer);
+    }
+    else
+    {
+        timer_start_timer(&code_entry_timer);
+    }
 
     // Determine which key was pressed
     for (int i = 0; i < 4; i++)
@@ -64,11 +134,21 @@ static void keypad_button_press_handler(uint8_t column)
         if (!gpio_pin_get_level(GPIOD, column))
         {
             row = rows[i];
+            gpio_pin_set(GPIOD, rows[i]);
+            break;
         }
         gpio_pin_set(GPIOD, rows[i]);
     }
 
-    key_pressed = keypad_array[row - 4][column - 1];
+    // Record pressed button and increment index
+    entered_code[current_code_index++] = keypad_array[row - 4][column - 1];
+
+    if (current_code_index == CODE_LENGTH)
+    {
+        evaluate_code();
+        reset_code();
+    }
+
 }
 
 void EXTI1_IRQHandler(void)
@@ -163,4 +243,5 @@ void keypad_init(void)
     NVIC_EnableIRQ(EXTI3_IRQn);
 
     timer_create_timer(&keypad_debounce_timer, false, KEYPAD_DEBOUNCE_PERIOD_MS, keypad_debounce_cb);
+    timer_create_timer(&code_entry_timer, false, CODE_ENTRY_TIMEOUT_MS, code_entry_timeout_cb);
 }
