@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "global_config_info.h"
 #include "stm32f4xx.h"
 #include "stm32f407xx.h"
 
@@ -86,8 +87,6 @@ void timers_change_period(TIM_TypeDef *timer, uint32_t period_ms)
 /**
  * Type declarations for timer module
  */
-
-#define MAX_TIMERS 10
 
 
 /**
