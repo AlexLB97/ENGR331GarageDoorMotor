@@ -6,6 +6,8 @@
 
 /* Includes */
 
+#include <stdbool.h>
+
 #include "keypad.h"
 #include "lab_gpio.h"
 #include "lab_interrupts.h"
@@ -20,6 +22,7 @@ extern void EXTI0_IRQHandler(void);
 
 /* File Scope Variables */
 static timer_t debounce_timer;
+static bool button_press_allowed = true;
 
 /* Static Function Declarations */
 static void debounce_timer_cb(void);
@@ -29,14 +32,7 @@ static void debounce_timer_cb(void);
 // Timer callback that re-enables the button interrupt after a debounce period
 static void debounce_timer_cb(void)
 {
-    // Clear the interrupt flag if set
-    EXTI->PR |= 1;
-    
-    // Clear any pending interrupts
-    NVIC_ClearPendingIRQ(EXTI0_IRQn);
-    
-    // Re-enable the button interrupt
-    NVIC_EnableIRQ(EXTI0_IRQn);
+    button_press_allowed = true;
 }
 
 
@@ -46,20 +42,21 @@ static void debounce_timer_cb(void)
  */
 void EXTI0_IRQHandler(void)
 {
-    // Transition motor to next state
-    door_state_t next_state = motor_control_get_next_state();
+    if (button_press_allowed)
+    {
+        // Transition motor to next state
+        door_state_t next_state = motor_control_get_next_state();
 
-    motor_control_handle_state_transition(next_state);
-    
+        motor_control_handle_state_transition(next_state);
+        
+        button_press_allowed = false;
+        
+        // Start timer to generate delay before re-enabling IRQ
+        timer_start_timer(&debounce_timer);
+    }
+
     // Clear the interrupt flag to allow exiting this ISR
     EXTI->PR |= 1;
-    
-    // Debounce by disabling the button IRQ. Timer will re-enable IRQ when
-    // the debounce period expires.
-    NVIC_DisableIRQ(EXTI0_IRQn);
-    
-    // Start timer to generate delay before re-enabling IRQ
-    timer_start_timer(&debounce_timer);
 }
 
 
