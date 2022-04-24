@@ -6,6 +6,7 @@
 
 /* Includes */
 
+#include "keypad.h"
 #include "lab_gpio.h"
 #include "lab_interrupts.h"
 #include "lab_timers.h"
@@ -67,6 +68,8 @@ void EXTI0_IRQHandler(void)
 
 int main(void)
 {
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN_Msk;
+    
     // Initialize the user button
     user_button_init();
 
@@ -75,12 +78,14 @@ int main(void)
 
     // Initialize the timers module
     timers_init();
-    
-    // Enable interrupts
-    interrupts_init_interrupts();
 
     // Create button debounce timer
     timer_create_timer(&debounce_timer, false, DEBOUNCE_TIMER_PERIOD_MS, debounce_timer_cb);
+    
+    keypad_init();
+
+    // Enable interrupts
+    interrupts_init_interrupts();
     
     while(1);
 }

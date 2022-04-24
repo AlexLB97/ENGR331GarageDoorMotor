@@ -42,7 +42,7 @@ void user_button_init(void)
 	gpio_pin_set_mode(GPIOA, GPIO_CREATE_MODE_MASK(USER_BTN, GPIO_MODE_INPUT));
 
 	// Set PUPDR for button
-	gpio_set_pupdr(GPIOA, GPIO_CREATE_MODE_MASK(USER_BTN, GPIO_PUPDR_NO_PULL));
+	gpio_set_pupdr(GPIOA, GPIO_CREATE_MODE_MASK(USER_BTN, GPIO_PUPDR_PULLDOWN));
     
     // Enable user button interrupt
     

@@ -19,6 +19,45 @@ static void shift_timers_left(int start_index);
 extern void SysTick_Handler(void);
 
 
+/*******************************
+ * tim6_delay(void)
+ * Inputs: NONE
+ * Outputs: NONE
+ * Based on PSC=0 and ARR=16000; 
+ * we get delay of approximately 1ms
+ *******************************
+ */
+static void tim6_delay(void){
+	// enable APB1 bus clock
+	RCC->APB1ENR|=RCC_APB1ENR_TIM6EN;
+	//TIM6 prescaler set at default to 0 for now
+	TIM6->PSC=0; // prescalar
+	TIM6->ARR = 16000;  //auto reload register 
+	TIM6->CNT=0;   //clear counter register
+	TIM6->CR1|=TIM_CR1_CEN;
+	//WHEN COUNTER IS DONE THE TIM6_SR REG UIF FLAG IS SET
+	while(TIM6->SR==0);
+	TIM6->SR=0; //CLEAR uIF FLAG
+}
+
+/*******************************
+ * delay(int ms)
+ * Inputs: delay in milliseconds
+ * Outputs: NONE
+ * An approximate delay because  
+ * call of tim6_delay() creates about 1.33ms
+ *******************************
+ */
+void timer6_delay(int ms)
+{
+	int i;
+	for (i = ms; i > 0; i--)
+	{
+		tim6_delay();
+	}
+}
+
+
 /**
  * Initializes TIM6 to a set period and enables the interrupt.
  */

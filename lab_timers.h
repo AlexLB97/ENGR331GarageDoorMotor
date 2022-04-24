@@ -20,7 +20,7 @@ typedef struct {
 
 
 // Delay Functions
-void tim6_delay(void);
+void timer6_delay(int ms);
 void delay(uint32_t ms);
 void timers_init_timer(TIM_TypeDef * timer, uint32_t apb1enr_bus_position, uint32_t period_ms);
 void timers_change_period(TIM_TypeDef *timer, uint32_t period_ms);
