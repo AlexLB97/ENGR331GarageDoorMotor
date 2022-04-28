@@ -14,6 +14,7 @@
 #include "lab_interrupts.h"
 #include "lab_timers.h"
 #include "motor_control.h"
+#include "servo_control.h"
 #include "stm32f407xx.h"
 
 extern void EXTI0_IRQHandler(void);
@@ -90,6 +91,8 @@ int main(void)
     keypad_init();
 
     adc_init();
+    
+    servo_init();
 
     // Enable interrupts
     interrupts_init_interrupts();
