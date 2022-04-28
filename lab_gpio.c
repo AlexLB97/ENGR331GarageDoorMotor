@@ -9,29 +9,23 @@
 #include "stm32f4xx.h"
 
 
-#define GREEN_LED 12
-#define ORANGE_LED 13
-#define RED_LED 14
-#define BLUE_LED 15
-#define USER_BTN 0
-
-
 void LED_init(void)
 {
 	// Enable the clock for GPIO port D
 	gpio_clock_enable(RCC_AHB1ENR_GPIODEN_Pos);
 	
 	// Set LED pins to output
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE13_Pos, GPIO_MODER_MODER13_0);
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE12_Pos, GPIO_MODER_MODER12_0);
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE14_Pos, GPIO_MODER_MODER14_0);
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE15_Pos, GPIO_MODER_MODER15_0);
+	gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(GREEN_LED, GPIO_MODE_OUTPUT));
+	gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(ORANGE_LED, GPIO_MODE_OUTPUT));
+	gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(RED_LED, GPIO_MODE_OUTPUT));
+	gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(BLUE_LED, GPIO_MODE_OUTPUT));
+
 	
 	// Set Pull up to none for all LEDs in use
-	gpio_set_pupdr(GPIOD, GPIO_PUPDR_PUPD13_Pos, 0x00);
-	gpio_set_pupdr(GPIOD, GPIO_PUPDR_PUPD12_Pos, 0x00);
-	gpio_set_pupdr(GPIOD, GPIO_PUPDR_PUPD14_Pos, 0x00);
-	gpio_set_pupdr(GPIOD, GPIO_PUPDR_PUPD15_Pos, 0x00);
+	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(GREEN_LED, GPIO_PUPDR_NO_PULL));
+	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(ORANGE_LED, GPIO_PUPDR_NO_PULL));
+	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(RED_LED, GPIO_PUPDR_NO_PULL));
+	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(BLUE_LED, GPIO_PUPDR_NO_PULL));
 	
 	// Set output type to push-pull for all LEDs
 	gpio_set_output_type(GPIOD, GPIO_OTYPER_OT13_Pos, 0x00);
@@ -45,10 +39,10 @@ void user_button_init(void)
 	gpio_clock_enable(RCC_AHB1ENR_GPIOAEN_Pos);
 
 	// Set button to input
-	gpio_pin_set_mode(GPIOA, GPIO_MODER_MODE0_Pos, 0x00);
+	gpio_pin_set_mode(GPIOA, GPIO_CREATE_MODE_MASK(USER_BTN, GPIO_MODE_INPUT));
 
 	// Set PUPDR for button
-	gpio_set_pupdr(GPIOA, GPIO_PUPDR_PUPD0_Pos,  0x00);
+	gpio_set_pupdr(GPIOA, GPIO_CREATE_MODE_MASK(USER_BTN, GPIO_PUPDR_PULLDOWN));
     
     // Enable user button interrupt
     
@@ -77,11 +71,8 @@ void gpio_set_output_type(GPIO_TypeDef *port, uint32_t pin_pos, uint32_t mask)
 	port->OTYPER |= mask;
 }
 
-void gpio_set_pupdr(GPIO_TypeDef *port, uint32_t pos, uint32_t mask)
+void gpio_set_pupdr(GPIO_TypeDef *port, uint32_t mask)
 {
-	// Clear bits associated with pin
-	port->PUPDR &= ~(3U << pos);
-	
 	// Set pull up mode
 	port->PUPDR |= mask;
 }
@@ -98,11 +89,8 @@ void gpio_pin_clear(GPIO_TypeDef *port, uint32_t pin)
 	port->ODR &= ~(1 << pin);
 }
 
-void gpio_pin_set_mode(GPIO_TypeDef *port, uint32_t pos, uint32_t mask)
+void gpio_pin_set_mode(GPIO_TypeDef *port, uint32_t mask)
 {
-	// Clear any pre-existing mode
-	port->MODER &= ~(3U << pos);
-	
 	// Set the desired mode
 	port->MODER |= mask;
 }
