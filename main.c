@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 
+#include "adc.h"
 #include "keypad.h"
 #include "lab_gpio.h"
 #include "lab_interrupts.h"
@@ -60,12 +61,19 @@ void EXTI0_IRQHandler(void)
 }
 
 
+static void board_init(void)
+{
+    // Enable clock for SYSCFG to allow configuration of interrupts
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN_Msk;
+}
+
 
 /* Main function */
 
 int main(void)
 {
-    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN_Msk;
+    // Enable prerequisites for using the functionality in this project (clocks, mostly)
+    board_init();
     
     // Initialize the user button
     user_button_init();
@@ -80,6 +88,8 @@ int main(void)
     timer_create_timer(&debounce_timer, false, DEBOUNCE_TIMER_PERIOD_MS, debounce_timer_cb);
     
     keypad_init();
+
+    adc_init();
 
     // Enable interrupts
     interrupts_init_interrupts();
