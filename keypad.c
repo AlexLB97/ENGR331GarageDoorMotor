@@ -14,6 +14,7 @@
 #include "lab_gpio.h"
 #include "lab_timers.h"
 #include "motor_control.h"
+#include "servo_control.h"
 #include "stm32f407xx.h"
 
 /* Preprocessor Definitions */
@@ -84,8 +85,8 @@ static void evaluate_code(void)
 {
     if (!strncmp(entered_code, correct_code, CODE_LENGTH + 1))
     {
-        door_state_t next_state = motor_control_get_next_state();
-        motor_control_handle_state_transition(next_state);
+        door_state_t next_state = servo_control_get_next_state();
+        servo_control_handle_state_transition(next_state);
     }
 }
 

@@ -47,9 +47,9 @@ void EXTI0_IRQHandler(void)
     if (button_press_allowed)
     {
         // Transition motor to next state
-        door_state_t next_state = motor_control_get_next_state();
+        door_state_t next_state = servo_control_get_next_state();
 
-        motor_control_handle_state_transition(next_state);
+        servo_control_handle_state_transition(next_state);
         
         button_press_allowed = false;
         

@@ -21,31 +21,62 @@
 #define PSC_FREQ_HZ 180000
 #define POSITION_0_COMPARE_VAL 88
 #define MAX_ANGLE 180
+#define OPEN_ANGLE 90
+#define CLOSED_ANGLE 0
+#define DOOR_OPEN_TIME_S 5
+#define STEP_SIZE_DEGREES 1
 
 /* File Scope Variables */
 static timer_t servo_timer;
 static uint32_t servo_angle = 0;
+static door_state_t current_state = DOOR_STATE_CLOSED;
+static door_state_t previous_state = DOOR_STATE_CLOSING;
 
 /* Static Function Declarations */
 static void servo_timer_cb(void);
 static void servo_set_angle(uint32_t angle);
+static void servo_pwm_init(void);
 
-/*Function Definitions */
+/* Function Definitions */
 
 static void servo_timer_cb(void)
 {
-    servo_angle++;
-    if (servo_angle == 1)
+    switch(current_state)
     {
-        timer_change_timer_period(&servo_timer, 10);
-    }
-    else if (servo_angle > MAX_ANGLE)
-    {
-        servo_angle = 0;
-        timer_change_timer_period(&servo_timer, 2000);
-    }
+        case DOOR_STATE_OPEN:
+        case DOOR_STATE_CLOSED:
+        case DOOR_STATE_STOPPED:
+            // Do nothing in these states
+            break;
+        
+        case DOOR_STATE_OPENING:
+        {
+            if (servo_angle >= OPEN_ANGLE)
+            {
+                current_state = DOOR_STATE_OPEN;
+            }
+            else
+            {
+                servo_angle += STEP_SIZE_DEGREES;
+                servo_set_angle(servo_angle);
+            }
+            break;
+        }
 
-    servo_set_angle(servo_angle);
+        case DOOR_STATE_CLOSING:
+        {
+            if (servo_angle <= CLOSED_ANGLE)
+            {
+                current_state = DOOR_STATE_CLOSED;
+            }
+            else
+            {
+                servo_angle -= STEP_SIZE_DEGREES;
+                servo_set_angle(servo_angle);
+            }
+            break;
+        }
+    }
 }
 
 
@@ -95,6 +126,9 @@ static void servo_pwm_init(void)
     
     // Enable the counter
     TIM3->CR1 |= TIM_CR1_CEN;
+
+    // Set the door to its initial closed position
+    servo_set_angle(CLOSED_ANGLE);
 }
 
 static void servo_set_angle(uint32_t angle)
@@ -111,14 +145,60 @@ static void servo_set_angle(uint32_t angle)
     TIM3->CCR3 = POSITION_0_COMPARE_VAL + (angle * 2);
 }
 
+door_state_t servo_control_get_current_state(void)
+{
+    return current_state;
+}
+
+/**
+ * @brief Function that manages the sequence of state for the door and returns the next state based
+ * on current and the event that occurred.
+ *
+ * @param [in] current_state  The current state of the door.
+ * @param [in] event          Event that occurred in the system
+ * @param [out] state         The next state of the system
+ */
+door_state_t servo_control_get_next_state(void)
+{
+    // The sequence of events should be STOPPED->OPENING->STOPPED->CLOSING->REPEAT
+    switch (current_state)
+    {
+        case DOOR_STATE_OPEN:
+            return DOOR_STATE_CLOSING;
+        
+        case DOOR_STATE_CLOSED:
+            return DOOR_STATE_OPENING;
+
+        case DOOR_STATE_STOPPED:
+            if (previous_state == DOOR_STATE_CLOSING)
+            {
+                return DOOR_STATE_OPENING;
+            }
+            else
+            {
+                return DOOR_STATE_CLOSING;
+            }
+        
+        default:
+            return DOOR_STATE_STOPPED;
+    }
+}
+
+void servo_control_handle_state_transition(door_state_t next_state)
+{
+    previous_state = current_state;
+    current_state = next_state;
+}
+
 /**
  * @brief Function for initializing the pins and PWWM associated with the servo
  * motor.
  */
 void servo_init(void)
 {
+    uint32_t servo_timer_period_ms = DOOR_OPEN_TIME_S * 1000 / (OPEN_ANGLE - CLOSED_ANGLE) * STEP_SIZE_DEGREES;
     servo_pwm_init();
     timer6_delay(100);
-    timer_create_timer(&servo_timer, true, 10, servo_timer_cb);
+    timer_create_timer(&servo_timer, true, servo_timer_period_ms, servo_timer_cb);
     timer_start_timer(&servo_timer);
 }

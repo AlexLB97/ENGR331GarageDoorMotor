@@ -24,16 +24,10 @@
 #define MOTOR_PWM_AF_NUM       2u
 #define PWM_FREQ_HZ            150u
 #define MOTOR_DUTY_CYCLE_PCT   75
-#define OPEN_DOOR_PIN          RED_LED
-#define CLOSE_DOOR_PIN         GREEN_LED
-#define DOOR_TIMER_PERIOD_MS   10000
+#define SPIN_FORWARD_PIN          RED_LED
+#define SPIN_BACKWARDS_PIN         GREEN_LED
 
 /* Type Definitions */
-
-/* File Scope Variables */
-static door_state_t previous_state = DOOR_STATE_CLOSING;
-static door_state_t current_state = DOOR_STATE_STOPPED;
-static timer_t door_timer;
 
 /* Static function declarations */
 
@@ -42,12 +36,6 @@ static timer_t door_timer;
  * signal for the DC motor.
  */
 static void motor_pwm_init(void);
-static void stop_door(void);
-static void open_door(void);
-static void close_door(void);
-static void set_initial_door_state(void);
-static void door_timer_cb(void);
-
 /**
  * @brief Function for changing the duty cycle of the motor PWM
  */
@@ -113,135 +101,6 @@ static void set_pwm_duty_cycle(uint32_t duty_pct)
     TIM4->CNT = 0;
 }
 
-door_state_t motor_control_get_current_state(void)
-{
-    return current_state;
-}
-
-/**
- * @brief Function that manages the sequence of state for the door and returns the next state based
- * on current and the event that occurred.
- *
- * @param [in] current_state  The current state of the door.
- * @param [in] event          Event that occurred in the system
- * @param [out] state         The next state of the system
- */
-door_state_t motor_control_get_next_state(void)
-{
-    // The sequence of events should be STOPPED->OPENING->STOPPED->CLOSING->REPEAT
-    switch (current_state)
-    {
-        case DOOR_STATE_OPENING:
-            return DOOR_STATE_STOPPED;
-        
-        case DOOR_STATE_CLOSING:
-            return DOOR_STATE_STOPPED;
-        
-        case DOOR_STATE_UNKNOWN:
-            return DOOR_STATE_STOPPED;
-
-        case DOOR_STATE_STOPPED:
-            if (previous_state == DOOR_STATE_CLOSING)
-            {
-                return DOOR_STATE_OPENING;
-            }
-            else
-            {
-                return DOOR_STATE_CLOSING;
-            }
-    }
-}
-
-/**
- * @brief Stops the door after a set period of time. Will eventually be replaced with
- * a pressure switch.
- */
-static void door_timer_cb(void)
-{
-    motor_control_handle_state_transition(DOOR_STATE_STOPPED);
-}
-
-/**
- * @brief Configures the H-bridge and pwm to stop the door
- */
-static void stop_door(void)
-{
-    // Set PWM duty cycle to 0
-    set_pwm_duty_cycle(0);
-
-    // Set both H-Bridge logic pins to low
-    gpio_pin_set_level(GPIOD, OPEN_DOOR_PIN, false);
-    gpio_pin_set_level(GPIOD, CLOSE_DOOR_PIN, false);
-    timer_stop_timer(&door_timer);
-}
-
-/**
- * @brief Configures the H-bridge and pwm to open the door. Currently runs motor for a fixed duration,
- * but should be adapted later to run until a pressure switch indicates that the door is open.
- */
-static void open_door(void)
-{
-    // Always call stop_door() first to ensure there is no short between open and close pins on H-Bridge
-    gpio_pin_set_level(GPIOD, OPEN_DOOR_PIN, false);
-    gpio_pin_set_level(GPIOD, CLOSE_DOOR_PIN, false);
-    set_pwm_duty_cycle(MOTOR_DUTY_CYCLE_PCT);
-    gpio_pin_set_level(GPIOD, OPEN_DOOR_PIN, true);
-    timer_start_timer(&door_timer);
-}
-
-/**
- * @brief Configures the H-bridge and pwm to close the door. Currently runs motor for a fixed duration,
- * but should be adapted later to close until a pressure switch indicates that the door is closed.
- */
-static void close_door(void)
-{
-    // Always call stop_door() first to ensure there is no short between open and close pins on H-Bridge
-    gpio_pin_set_level(GPIOD, OPEN_DOOR_PIN, false);
-    gpio_pin_set_level(GPIOD, CLOSE_DOOR_PIN, false);
-    set_pwm_duty_cycle(MOTOR_DUTY_CYCLE_PCT);
-    gpio_pin_set_level(GPIOD, CLOSE_DOOR_PIN, true);
-    timer_start_timer(&door_timer);
-}
-
-void motor_control_handle_state_transition(door_state_t next_state)
-{
-    previous_state = current_state;
-    current_state = next_state;
-
-    switch (current_state)
-    {
-        case DOOR_STATE_STOPPED:
-        {
-            stop_door();
-            break;
-        }
-
-        case DOOR_STATE_OPENING:
-        {
-            open_door();
-            break;
-
-        }
-
-        case DOOR_STATE_CLOSING:
-        {
-            close_door();
-            break;
-        }
-
-        case DOOR_STATE_UNKNOWN:
-        {
-            close_door();
-            break;
-        }
-    }
-}
-
-static void set_initial_door_state(void)
-{
-    // TODO: Once pressure switches are implemented, create logic here to determine starting state of door.
-}
-
 void motor_control_init(void)
 {
     // Initialize the motor control pin
@@ -252,15 +111,10 @@ void motor_control_init(void)
 	gpio_clock_enable(RCC_AHB1ENR_GPIODEN_Pos);
 	
 	// Set LED pins to output
-	gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(OPEN_DOOR_PIN, GPIO_MODE_OUTPUT));
-	gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(CLOSE_DOOR_PIN, GPIO_MODE_OUTPUT));
+	gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(SPIN_FORWARD_PIN, GPIO_MODE_OUTPUT));
+	gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(SPIN_BACKWARDS_PIN, GPIO_MODE_OUTPUT));
 	
 	// Set pull to none for all LEDs in use
-	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(OPEN_DOOR_PIN, GPIO_PUPDR_NO_PULL));
-	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(CLOSE_DOOR_PIN, GPIO_PUPDR_NO_PULL));
-
-    // (NOT IMPLEMENTED YET: Get door state based on pressure switches)
-    set_initial_door_state();
-
-    timer_create_timer(&door_timer, false, DOOR_TIMER_PERIOD_MS, door_timer_cb);
+	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(SPIN_FORWARD_PIN, GPIO_PUPDR_NO_PULL));
+	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(SPIN_BACKWARDS_PIN, GPIO_PUPDR_NO_PULL));
 }
