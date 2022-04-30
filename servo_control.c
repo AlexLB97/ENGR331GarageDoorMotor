@@ -39,6 +39,21 @@ static void servo_pwm_init(void);
 
 /* Function Definitions */
 
+void servo_control_close_door(void)
+{
+    servo_control_handle_state_transition(DOOR_STATE_CLOSING);
+}
+
+void servo_control_open_door(void)
+{
+    servo_control_handle_state_transition(DOOR_STATE_OPENING);
+}
+
+void servo_control_stop_door(void)
+{
+    servo_control_handle_state_transition(DOOR_STATE_STOPPED);
+}
+
 static void servo_timer_cb(void)
 {
     switch(current_state)

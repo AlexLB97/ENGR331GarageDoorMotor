@@ -25,6 +25,10 @@ typedef enum door_state_t {
  */
 door_state_t servo_control_get_next_state(void);
 
+void servo_control_open_door(void);
+void servo_control_close_door(void);
+void servo_control_stop_door(void);
+
 
 /**
  * @brief Function that handles the door's transition to the next state based on

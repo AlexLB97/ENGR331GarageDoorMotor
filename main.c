@@ -13,6 +13,7 @@
 #include "lab_gpio.h"
 #include "lab_interrupts.h"
 #include "lab_timers.h"
+#include "motion_detector.h"
 #include "motor_control.h"
 #include "servo_control.h"
 #include "stm32f407xx.h"
@@ -93,6 +94,8 @@ int main(void)
     adc_init();
     
     servo_init();
+
+    motion_detector_init();
 
     // Enable interrupts
     interrupts_init_interrupts();
