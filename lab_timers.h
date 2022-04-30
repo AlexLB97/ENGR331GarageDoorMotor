@@ -16,6 +16,7 @@ typedef struct {
     timer_callback_t cb;
     bool timer_active;
     bool repeating;
+    char pad_bytes[2]; // Padding to eliminate padding warning
 } timer_t;
 
 

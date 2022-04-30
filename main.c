@@ -13,7 +13,9 @@
 #include "lab_gpio.h"
 #include "lab_interrupts.h"
 #include "lab_timers.h"
+#include "motion_detector.h"
 #include "motor_control.h"
+#include "servo_control.h"
 #include "stm32f407xx.h"
 
 extern void EXTI0_IRQHandler(void);
@@ -46,9 +48,9 @@ void EXTI0_IRQHandler(void)
     if (button_press_allowed)
     {
         // Transition motor to next state
-        door_state_t next_state = motor_control_get_next_state();
+        door_state_t next_state = servo_control_get_next_state();
 
-        motor_control_handle_state_transition(next_state);
+        servo_control_handle_state_transition(next_state);
         
         button_press_allowed = false;
         
@@ -90,6 +92,10 @@ int main(void)
     keypad_init();
 
     adc_init();
+    
+    servo_init();
+
+    motion_detector_init();
 
     // Enable interrupts
     interrupts_init_interrupts();
