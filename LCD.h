@@ -48,6 +48,9 @@ typedef enum {
 #define TWO_LINE       (1 << 3)
 #define TALL_FONT      (1 << 2)
 
+/** Set DDRAM **/
+#define SET_CURSOR_ADDRESS 0x80
+
 
 
 
@@ -68,6 +71,7 @@ void LCD_send_cmd(uint8_t cmd);
 void LCD_write_char(unsigned char data);
 void LCD_write_string(char *message, write_type_t write_type);
 void LCD_clear_display(void);
+void LCD_write_string_at_addr(char *message, write_type_t write_type, uint8_t addr, int num_chars);
 // END Functions
 
 

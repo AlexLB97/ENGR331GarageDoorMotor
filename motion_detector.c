@@ -59,8 +59,6 @@ void EXTI4_IRQHandler(void)
 
         // Reset garage inactivity timer
         timer_reset_timer(&occupancy_timer);
-        
-        gpio_pin_set(GPIOD, ORANGE_LED);
     }
 
     // Clear interrupt flag
@@ -102,7 +100,7 @@ void motion_detector_init(void)
 	gpio_pin_set_mode(GPIOC, GPIO_CREATE_MODE_MASK(MOTION_PIN, GPIO_MODE_INPUT));
 
 	// Set PUPDR for button
-	gpio_set_pupdr(GPIOC, GPIO_CREATE_MODE_MASK(MOTION_PIN, GPIO_PUPDR_PULLDOWN));
+	gpio_set_pupdr(GPIOC, GPIO_CREATE_MODE_MASK(MOTION_PIN, GPIO_PUPDR_PULLUP));
     
     // Enable motion detector interrupt
     

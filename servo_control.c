@@ -194,7 +194,8 @@ door_state_t servo_control_get_next_state(void)
                 return DOOR_STATE_CLOSING;
             }
         
-        default:
+        case DOOR_STATE_CLOSING:
+        case DOOR_STATE_OPENING:
             return DOOR_STATE_STOPPED;
     }
 }

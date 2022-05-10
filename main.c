@@ -13,6 +13,8 @@
 #include "lab_gpio.h"
 #include "lab_interrupts.h"
 #include "lab_timers.h"
+#include "LCD.h"
+#include "lcd_layout.h"
 #include "motion_detector.h"
 #include "motor_control.h"
 #include "servo_control.h"
@@ -78,7 +80,7 @@ int main(void)
     board_init();
     
     // Initialize the user button
-    user_button_init();
+    // user_button_init();
 
     // Initialize the motor control system
     motor_control_init();
@@ -88,6 +90,12 @@ int main(void)
 
     // Create button debounce timer
     timer_create_timer(&debounce_timer, false, DEBOUNCE_TIMER_PERIOD_MS, debounce_timer_cb);
+    
+    
+    // Initialize the LCD. Must be done before any modules that write to the LCD
+    LCD_port_init();
+    
+    LCD_init();
     
     keypad_init();
 
@@ -99,6 +107,6 @@ int main(void)
 
     // Enable interrupts
     interrupts_init_interrupts();
-    
+
     while(1);
 }
