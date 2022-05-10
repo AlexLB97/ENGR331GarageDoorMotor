@@ -58,8 +58,11 @@ void user_button_init(void)
  
 void gpio_clock_enable(uint32_t port_position)
 {
-	// Set the bit corresponding to the clock enable for the port of interest
-	RCC->AHB1ENR |= (1U << port_position);
+	// Set the bit corresponding to the clock enable for the port of interest if not already set
+    if (!(RCC->AHB1ENR & (1U << port_position)))
+    {
+        RCC->AHB1ENR |= (1U << port_position);
+    }
 }
  
 void gpio_set_output_type(GPIO_TypeDef *port, uint32_t pin_pos, uint32_t mask)

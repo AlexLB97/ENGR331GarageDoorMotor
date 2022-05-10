@@ -19,6 +19,7 @@
 #include "motor_control.h"
 #include "servo_control.h"
 #include "stm32f407xx.h"
+#include "event_queue.h"
 
 extern void EXTI0_IRQHandler(void);
 
@@ -108,5 +109,9 @@ int main(void)
     // Enable interrupts
     interrupts_init_interrupts();
 
-    while(1);
+    while(1)
+    {
+        queue_wait_for_event();
+        queue_process_all_events();
+    }
 }

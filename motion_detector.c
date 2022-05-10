@@ -18,6 +18,7 @@
 #define INT_DELAY_MS 5000
 #define OCCUPANCY_TIMEOUT_S 20
 #define INIT_TIME_S 60
+#define WHITE_LED 10
 
 
 /* File Scope Variables */
@@ -52,6 +53,8 @@ void EXTI4_IRQHandler(void)
     {
         // Set garage state as occupied
         occupancy_state = GARAGE_OCCUPIED;
+
+        gpio_pin_set(GPIOE, WHITE_LED);
         
         // Start timer and disallow interrupts to throttle back
         motion_detection_active = false;
@@ -68,7 +71,6 @@ void EXTI4_IRQHandler(void)
 static void delay_timer_cb(void)
 {
     motion_detection_active = true;
-    gpio_pin_clear(GPIOD, ORANGE_LED);
 }
 
 
@@ -76,6 +78,8 @@ static void occupancy_timer_cb(void)
 {
     // Set garage as unoccupied
     occupancy_state = GARAGE_UNOCCUPIED;
+    
+    gpio_pin_clear(GPIOE, WHITE_LED);
 
     // Close the garage door
     servo_control_close_door();
@@ -91,16 +95,18 @@ static void initialization_timer_cb(void)
 void motion_detector_init(void)
 {
     // Initialize clock for port C if not enabled
-    if (!(RCC->AHB1ENR & (1 << RCC_AHB1ENR_GPIOCEN_Pos)))
-    {
-        gpio_clock_enable(RCC_AHB1ENR_GPIOCEN_Pos);
-    }
+    gpio_clock_enable(RCC_AHB1ENR_GPIOCEN_Pos);
+    gpio_clock_enable(RCC_AHB1ENR_GPIOEEN_Pos);
 
 	// Set motion dectector pin to input
 	gpio_pin_set_mode(GPIOC, GPIO_CREATE_MODE_MASK(MOTION_PIN, GPIO_MODE_INPUT));
 
 	// Set PUPDR for button
-	gpio_set_pupdr(GPIOC, GPIO_CREATE_MODE_MASK(MOTION_PIN, GPIO_PUPDR_PULLUP));
+	gpio_set_pupdr(GPIOC, GPIO_CREATE_MODE_MASK(MOTION_PIN, GPIO_PUPDR_NO_PULL));
+
+    // Initialize status LED for now
+    gpio_pin_set_mode(GPIOE, GPIO_CREATE_MODE_MASK(WHITE_LED, GPIO_MODE_OUTPUT));
+    gpio_set_pupdr(GPIOE, GPIO_CREATE_PUPDR_MASK(WHITE_LED, GPIO_PUPDR_NO_PULL));
     
     // Enable motion detector interrupt
     
