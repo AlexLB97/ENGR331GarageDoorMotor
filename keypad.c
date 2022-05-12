@@ -18,6 +18,7 @@
 #include "LCD.h"
 #include "lcd_layout.h"
 #include "motor_control.h"
+#include "motion_detector.h"
 #include "servo_control.h"
 #include "stm32f407xx.h"
 
@@ -88,12 +89,12 @@ static void transition_to_active_state_cb(void)
 {
         clear_passcode_region();
         // State just transitioned. Display first character.
-        LCD_write_char(entered_code[0]);
+        LCD_write_string_at_addr(entered_code, ON_WHILE_WRITING, (SECOND_LINE_STRT_ADDR), current_code_index);
 }
 
 static void entry_active_cb(void)
 {
-    LCD_write_char(entered_code[current_code_index - 1]);
+    LCD_write_string_at_addr(entered_code, ON_WHILE_WRITING, (SECOND_LINE_STRT_ADDR), current_code_index);
 }
 
 static void display_fail_string_cb(void)
@@ -152,6 +153,7 @@ static void evaluate_code(void)
         servo_control_handle_state_transition(next_state);
         queue_add_event(display_success_string_cb);
         gpio_pin_set(GPIOE, GREEN_STATUS_LED);
+        queue_add_event(transition_to_occupied_state_cb);
     }
     else
     {

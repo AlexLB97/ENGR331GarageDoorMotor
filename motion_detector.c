@@ -5,6 +5,7 @@
  * Goal: Module for initializing and handling input from motion detector.
  */
 
+#include "event_queue.h"
 #include "lab_gpio.h"
 #include "lab_timers.h"
 #include "motion_detector.h"
@@ -16,7 +17,7 @@
 /* Preprocessor Definitions */
 #define MOTION_PIN 4
 #define INT_DELAY_MS 5000
-#define OCCUPANCY_TIMEOUT_S 20
+#define OCCUPANCY_TIMEOUT_S 10
 #define INIT_TIME_S 60
 #define WHITE_LED 10
 
@@ -24,8 +25,6 @@
 /* File Scope Variables */
 static timer_t input_delay_timer;
 static timer_t occupancy_timer;
-static timer_t initialization_timer;
-static bool initialized = true;
 static bool motion_detection_active = true;
 static occupancy_state_t occupancy_state = GARAGE_UNOCCUPIED;
 
@@ -33,7 +32,6 @@ static occupancy_state_t occupancy_state = GARAGE_UNOCCUPIED;
 extern void EXTI4_IRQHandler(void);
 static void delay_timer_cb(void);
 static void occupancy_timer_cb(void);
-static void initialization_timer_cb(void);
 
 
 /* Function Definitions */
@@ -43,6 +41,46 @@ occupancy_state_t motion_detector_get_occupancy_state(void)
     return occupancy_state;
 }
 
+void transition_to_occupied_state_cb(void)
+{
+    motion_detector_handle_state_transition(GARAGE_OCCUPIED);
+}
+
+static void transition_to_unoccupied_state_cb(void)
+{
+    motion_detector_handle_state_transition(GARAGE_UNOCCUPIED);
+}
+
+void motion_detector_handle_state_transition(occupancy_state_t new_state)
+{
+    if (new_state != occupancy_state)
+    {
+        occupancy_state = new_state;
+
+        switch (occupancy_state)
+        {
+            case GARAGE_UNOCCUPIED:
+            {
+                gpio_pin_clear(GPIOE, WHITE_LED);
+
+                // Close the garage door
+                servo_control_close_door();
+                timer_stop_timer(&occupancy_timer);
+                break;
+            }
+
+            case GARAGE_OCCUPIED:
+            {
+                gpio_pin_set(GPIOE, WHITE_LED);
+                if (!timer_is_timer_active(&occupancy_timer))
+                {
+                    timer_start_timer(&occupancy_timer);
+                }
+                break;
+            }
+        }
+    }
+}
 
 /**
  * @brief Handles interrupts from the motion detector
@@ -51,17 +89,13 @@ void EXTI4_IRQHandler(void)
 {
     if (motion_detection_active)
     {
-        // Set garage state as occupied
-        occupancy_state = GARAGE_OCCUPIED;
-
-        gpio_pin_set(GPIOE, WHITE_LED);
-        
         // Start timer and disallow interrupts to throttle back
         motion_detection_active = false;
         timer_start_timer(&input_delay_timer);
 
-        // Reset garage inactivity timer
         timer_reset_timer(&occupancy_timer);
+
+        queue_add_event(transition_to_occupied_state_cb);
     }
 
     // Clear interrupt flag
@@ -76,20 +110,8 @@ static void delay_timer_cb(void)
 
 static void occupancy_timer_cb(void)
 {
-    // Set garage as unoccupied
-    occupancy_state = GARAGE_UNOCCUPIED;
-    
-    gpio_pin_clear(GPIOE, WHITE_LED);
-
-    // Close the garage door
-    servo_control_close_door();
+    queue_add_event(transition_to_unoccupied_state_cb);
 }
-
-static void initialization_timer_cb(void)
-{
-    initialized = true;
-}
-
 
 
 void motion_detector_init(void)
@@ -111,7 +133,7 @@ void motion_detector_init(void)
     // Enable motion detector interrupt
     
     // Set ICR Register
-    SYSCFG->EXTICR[0] &= ~(0x000Fu);
+    SYSCFG->EXTICR[1] &= ~(0x000Fu);
     SYSCFG->EXTICR[1] |= 0x02;
     EXTI->IMR |= (1 << MOTION_PIN);
     EXTI->RTSR |= (1 << MOTION_PIN);
@@ -122,8 +144,5 @@ void motion_detector_init(void)
     // Create timer to throttling back motion sensor input a bit
     timer_create_timer(&input_delay_timer, false, INT_DELAY_MS, delay_timer_cb);
     timer_create_timer(&occupancy_timer, false, (OCCUPANCY_TIMEOUT_S * 1000), occupancy_timer_cb);
-    timer_create_timer(&initialization_timer, false, (INIT_TIME_S * 60 * 1000), initialization_timer_cb);
-
-    // Start init timer to prevent use of this module before it is ready
 
 }

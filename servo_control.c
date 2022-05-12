@@ -8,11 +8,16 @@
 #include "servo_control.h"
 
 #include <stdint.h>
+#include <string.h>
 
 #include "global_config_info.h"
+#include "LCD.h"
+#include "lcd_layout.h"
 #include "lab_gpio.h"
 #include "lab_timers.h"
+#include "motion_detector.h"
 #include "stm32f407xx.h"
+#include "event_queue.h"
 
 /* Preprocessor Definitions */
 #define SERVO_PIN 8
@@ -29,15 +34,32 @@
 /* File Scope Variables */
 static timer_t servo_timer;
 static uint32_t servo_angle = 0;
-static door_state_t current_state = DOOR_STATE_CLOSED;
+static door_state_t current_state = DOOR_STATE_CLOSING;
 static door_state_t previous_state = DOOR_STATE_CLOSING;
+
+static char state_strings[5][10] = {"OPENING", "CLOSING", "STOPPED", "CLOSED", "OPEN"};
+static char clear_string[] = "        ";
+
+
 
 /* Static Function Declarations */
 static void servo_timer_cb(void);
 static void servo_set_angle(uint32_t angle);
 static void servo_pwm_init(void);
+static void clear_door_status_region(void);
 
 /* Function Definitions */
+
+static void clear_door_status_region(void)
+{
+    LCD_write_string_at_addr(clear_string, ON_WHILE_WRITING, FIRST_LINE_STRT_ADDR, (int)strlen(clear_string));
+}
+
+static void update_status_cb(void)
+{
+    clear_door_status_region();
+    LCD_write_string_at_addr(state_strings[current_state], ON_WHILE_WRITING, FIRST_LINE_STRT_ADDR, (int)strlen(state_strings[current_state]));
+}
 
 void servo_control_close_door(void)
 {
@@ -68,7 +90,7 @@ static void servo_timer_cb(void)
         {
             if (servo_angle >= OPEN_ANGLE)
             {
-                current_state = DOOR_STATE_OPEN;
+                servo_control_handle_state_transition(DOOR_STATE_OPEN);
             }
             else
             {
@@ -82,7 +104,7 @@ static void servo_timer_cb(void)
         {
             if (servo_angle <= CLOSED_ANGLE)
             {
-                current_state = DOOR_STATE_CLOSED;
+                servo_control_handle_state_transition(DOOR_STATE_CLOSED);
             }
             else
             {
@@ -202,8 +224,12 @@ door_state_t servo_control_get_next_state(void)
 
 void servo_control_handle_state_transition(door_state_t next_state)
 {
-    previous_state = current_state;
-    current_state = next_state;
+    if (next_state != current_state)
+    {
+        previous_state = current_state;
+        current_state = next_state;
+        queue_add_event(update_status_cb);
+    }
 }
 
 /**
@@ -217,4 +243,5 @@ void servo_init(void)
     timer6_delay(100);
     timer_create_timer(&servo_timer, true, servo_timer_period_ms, servo_timer_cb);
     timer_start_timer(&servo_timer);
+    servo_control_handle_state_transition(DOOR_STATE_CLOSED);
 }

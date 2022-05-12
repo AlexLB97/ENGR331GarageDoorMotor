@@ -16,12 +16,15 @@ typedef enum occupancy_state_t {
 
 
 occupancy_state_t motion_detector_get_occupancy_state(void);
+void motion_detector_handle_state_transition(occupancy_state_t state);
 
 
 /**
  * @brief Function for initializing the motion detector as an input with an interrupt
  */
 void motion_detector_init(void);
+
+void transition_to_occupied_state_cb(void);
 
 
 
