@@ -138,6 +138,8 @@ static timer_t *timer_list[MAX_TIMERS];
 
 static int num_active_timers = 0;
 
+static timer_t none_timer = {0};
+
 // Use an array to hold a maximum number of timers here in static memory.
 // 
 
@@ -172,6 +174,7 @@ static void check_for_expired_timers(void)
     {
         if (timer_list[i]->expiration_ticks < ticks)
         {
+            timer_list[i]->timer_active = false;
             timer_list[i]->cb();
             if (timer_list[i]->repeating)
             {
@@ -206,9 +209,12 @@ void timer_create_timer(timer_t *pTimer, bool repeating, uint32_t period_ms, tim
 void timer_start_timer(timer_t *pTimer)
 {
     pTimer->expiration_ticks = ticks + pTimer->duration_ms;
-    pTimer->timer_active = true;
-    timer_list[num_active_timers] = pTimer;
-    num_active_timers++;
+    if (!pTimer->timer_active)
+    {
+        pTimer->timer_active = true;
+        timer_list[num_active_timers] = pTimer;
+        num_active_timers++;
+    }
 }
 
 /**
@@ -224,7 +230,6 @@ uint32_t timer_get_time_millis(void)
  */
 void timer_reset_timer(timer_t *pTimer)
 {
-    timer_stop_timer(pTimer);
     timer_start_timer(pTimer);
 }
 
@@ -256,6 +261,7 @@ static void shift_timers_left(int start_index)
     {
         timer_list[i] = timer_list[i + 1];
     }
+    timer_list[num_active_timers - 1] = &none_timer;
 }
 
 /**

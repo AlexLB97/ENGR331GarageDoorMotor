@@ -11,9 +11,14 @@
 #include <string.h>
 
 #include "keypad.h"
+
+#include "event_queue.h"
 #include "lab_gpio.h"
 #include "lab_timers.h"
+#include "LCD.h"
+#include "lcd_layout.h"
 #include "motor_control.h"
+#include "motion_detector.h"
 #include "servo_control.h"
 #include "stm32f407xx.h"
 
@@ -21,12 +26,15 @@
 #define KEYPAD_DEBOUNCE_PERIOD_MS 200
 #define CODE_ENTRY_TIMEOUT_MS 5000    // Clear passcode and return to default state if there are 5 seconds between button presses
 #define CODE_LENGTH 4
+#define GREEN_STATUS_LED 9
+#define RED_STATUS_LED  11
 
 /* Type Definitions */
 typedef enum entry_state_t {
     ENTRY_INACTIVE = 0,
     ENTRY_ACTIVE,
-    ENTRY_COMPLETE
+    WAITING_FOR_ENTER,
+    DISPLAYING_MESSAGE
 } entry_state_t;
 
 /* File scope variables */
@@ -38,6 +46,12 @@ static char keypad_array[4][3] = {{'1','2','3'},
 static char correct_code[] = "2539";
 static char default_code[] = "0000";
 static char entered_code[CODE_LENGTH + 1];
+
+static char idle_string[] = "Enter Code";
+static char success_string[] = "Success";
+static char fail_string[] = "Wrong Code";
+static char empty_row[] = "                ";
+static char ENTER_BUTTON = '#';
 
 static int current_code_index = 0;
 
@@ -58,22 +72,72 @@ extern void EXTI3_IRQHandler(void);
 /* Static function declarations */
 static void keypad_debounce_cb(void);
 static void code_entry_timeout_cb(void);
-static void reset_code(void);
+static void clear_passcode_region(void);
+static void change_keypad_message(char *message);
+static void handle_keypad_action(char button);
+static void handle_state_transition(entry_state_t next_state);
+static void reset_button_press_timer(void);
+static void transition_to_active_state_cb(void);
+static void entry_active_cb(void);
+static void display_fail_string_cb(void);
+static void display_success_string_cb(void);
+static void display_idle_string_cb(void);
 
+
+/* Callbacks to execute LCD writes from the main loop */
+static void transition_to_active_state_cb(void)
+{
+        clear_passcode_region();
+        // State just transitioned. Display first character.
+        LCD_write_string_at_addr(entered_code, ON_WHILE_WRITING, (SECOND_LINE_STRT_ADDR), current_code_index);
+}
+
+static void entry_active_cb(void)
+{
+    LCD_write_string_at_addr(entered_code, ON_WHILE_WRITING, (SECOND_LINE_STRT_ADDR), current_code_index);
+}
+
+static void display_fail_string_cb(void)
+{
+    change_keypad_message(fail_string);
+}
+
+static void display_success_string_cb(void)
+{
+    change_keypad_message(success_string);
+}
+
+static void display_idle_string_cb(void)
+{
+    change_keypad_message(idle_string);
+}
 
 
 /* Functions */
 
-static void reset_code(void)
+static void reset_button_press_timer(void)
 {
-    current_entry_state = ENTRY_INACTIVE;
-    current_code_index = 0;
-    gpio_pin_clear(GPIOD, ORANGE_LED);
-    strncpy(entered_code, default_code, CODE_LENGTH + 1);
+    // Start or reset code entry timer
     if (timer_is_timer_active(&code_entry_timer))
     {
-        timer_stop_timer(&code_entry_timer);
+        timer_reset_timer(&code_entry_timer);
     }
+    else
+    {
+        timer_start_timer(&code_entry_timer);
+    }
+}
+
+static void change_keypad_message(char *message)
+{
+    clear_passcode_region();
+    LCD_write_string_at_addr(message, ON_WHILE_WRITING, SECOND_LINE_STRT_ADDR, (int)strlen(message));
+}
+
+static void clear_passcode_region(void)
+{
+    LCD_write_string_at_addr(empty_row, ON_WHILE_WRITING, SECOND_LINE_STRT_ADDR, (int)strlen(empty_row));
+    LCD_place_cursor(SECOND_LINE_STRT_ADDR);
 }
 
 static void keypad_debounce_cb(void) 
@@ -87,13 +151,150 @@ static void evaluate_code(void)
     {
         door_state_t next_state = servo_control_get_next_state();
         servo_control_handle_state_transition(next_state);
+        queue_add_event(display_success_string_cb);
+        gpio_pin_set(GPIOE, GREEN_STATUS_LED);
+        queue_add_event(transition_to_occupied_state_cb);
+    }
+    else
+    {
+        queue_add_event(display_fail_string_cb);
+        gpio_pin_set(GPIOE, RED_STATUS_LED);
     }
 }
 
 
 static void code_entry_timeout_cb(void)
 {
-    reset_code();
+    handle_state_transition(ENTRY_INACTIVE);
+}
+
+static bool record_button_press(char button)
+{
+    if (button >= '0' && button <= '9')
+    {
+        entered_code[current_code_index++] = button;
+        return true;
+    }
+    return false;
+}
+
+static void handle_state_transition(entry_state_t next_state)
+{
+    current_entry_state = next_state;
+
+    switch(next_state)
+    {
+        case ENTRY_INACTIVE:
+        {
+            // reset code index
+            current_code_index = 0;
+
+            // Reset LEDs
+            gpio_pin_clear(GPIOE, GREEN_STATUS_LED);
+            gpio_pin_clear(GPIOE, RED_STATUS_LED);
+
+            // reset the recorded code
+            strncpy(entered_code, default_code, CODE_LENGTH + 1);
+
+            // stop the entry timer if active
+            if (timer_is_timer_active(&code_entry_timer))
+            {
+                timer_stop_timer(&code_entry_timer);
+            }
+
+            // change message back to idle message
+            queue_add_event(display_idle_string_cb);
+            break;
+        }
+
+        case ENTRY_ACTIVE:
+        {
+            queue_add_event(transition_to_active_state_cb);
+            break;
+        }
+
+        case WAITING_FOR_ENTER:
+        {
+            break;
+        }
+
+        case DISPLAYING_MESSAGE:
+        {
+            evaluate_code();
+            break;
+        }
+    }
+}
+
+static void handle_keypad_action(char button)
+{
+    switch (current_entry_state)
+    {
+        case ENTRY_INACTIVE:
+        {
+            bool valid_button = record_button_press(button);
+            if (valid_button)
+            {
+                handle_state_transition(ENTRY_ACTIVE);
+                reset_button_press_timer();
+            }
+            break;
+        }
+
+        case ENTRY_ACTIVE:
+        {
+            bool valid_button = record_button_press(button);
+            if (valid_button)
+            {
+                reset_button_press_timer();
+
+                // Queue event to display character just entered on LCD
+                queue_add_event(entry_active_cb);
+
+                // If code is fully entered, go to next state
+                if (current_code_index == CODE_LENGTH)
+                {
+                    handle_state_transition(WAITING_FOR_ENTER);
+                } 
+            }
+            break;
+        }
+
+        case WAITING_FOR_ENTER:
+        {
+            if (button == ENTER_BUTTON)
+            {
+                reset_button_press_timer();
+
+                // Evaluate code and take action accordingly
+                handle_state_transition(DISPLAYING_MESSAGE);
+            }
+            break;
+        }
+
+        case DISPLAYING_MESSAGE:
+        {
+            break;
+        }
+    }
+}
+
+static int get_button_row(int col)
+{
+    uint8_t rows[4] = {R0, R1, R2, R3};
+    int row = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        gpio_pin_clear(GPIOD, rows[i]);
+        if (!gpio_pin_get_level(GPIOD, (uint32_t)col))
+        {
+            row = i;
+            gpio_pin_set(GPIOD, rows[i]);
+            break;
+        }
+        gpio_pin_set(GPIOD, rows[i]);
+    }
+    return row;
 }
 
 /**
@@ -102,54 +303,18 @@ static void code_entry_timeout_cb(void)
 */
 static void keypad_button_press_handler(uint8_t column)
 {  
-    uint8_t rows[4] = {R0, R1, R2, R3};
-    uint8_t row = 0;
+    int row;
 
     // Prevent further erroneous button pressed
     button_press_allowed = false;
 
-    // Transition to active state if not active
-    if (current_entry_state == ENTRY_INACTIVE)
-    {
-        current_entry_state = ENTRY_ACTIVE;
-        gpio_pin_set(GPIOD, ORANGE_LED);
-    }
-
     // Start debounce timer
     timer_start_timer(&keypad_debounce_timer);
 
-    // Start or reset code entry timer
-    if (timer_is_timer_active(&code_entry_timer))
-    {
-        timer_reset_timer(&code_entry_timer);
-    }
-    else
-    {
-        timer_start_timer(&code_entry_timer);
-    }
-
     // Determine which key was pressed
-    for (int i = 0; i < 4; i++)
-    {
-        gpio_pin_clear(GPIOD, rows[i]);
-        if (!gpio_pin_get_level(GPIOD, column))
-        {
-            row = rows[i];
-            gpio_pin_set(GPIOD, rows[i]);
-            break;
-        }
-        gpio_pin_set(GPIOD, rows[i]);
-    }
+    row = get_button_row(column);
 
-    // Record pressed button and increment index
-    entered_code[current_code_index++] = keypad_array[row - 4][column - 1];
-
-    if (current_code_index == CODE_LENGTH)
-    {
-        evaluate_code();
-        reset_code();
-    }
-
+    handle_keypad_action(keypad_array[row][column - 1]);
 }
 
 void EXTI1_IRQHandler(void)
@@ -184,6 +349,7 @@ void keypad_init(void)
 {
     // Enable clock for port D
     gpio_clock_enable(RCC_AHB1ENR_GPIODEN_Pos);
+    gpio_clock_enable(RCC_AHB1ENR_GPIOEEN_Pos);
 
     // Configure rows as outputs
     gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(R0, GPIO_MODE_OUTPUT));
@@ -211,10 +377,12 @@ void keypad_init(void)
     gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(C1, GPIO_PUPDR_PULLDOWN));
     gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(C2, GPIO_PUPDR_PULLDOWN));
 
-    // Configure orange LED to be status LED. This will be replaced later by an external LED
-    gpio_pin_set_mode(GPIOD, GPIO_CREATE_MODE_MASK(ORANGE_LED, GPIO_MODE_OUTPUT));
-    gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(ORANGE_LED, GPIO_PUPDR_NO_PULL));
+    // Configure the red and green status LEDs
+    gpio_pin_set_mode(GPIOE, GPIO_CREATE_MODE_MASK(GREEN_STATUS_LED, GPIO_MODE_OUTPUT));
+    gpio_set_pupdr(GPIOE, GPIO_CREATE_PUPDR_MASK(GREEN_STATUS_LED, GPIO_PUPDR_NO_PULL));
 
+    gpio_pin_set_mode(GPIOE, GPIO_CREATE_MODE_MASK(RED_STATUS_LED, GPIO_MODE_OUTPUT));
+    gpio_set_pupdr(GPIOE, GPIO_CREATE_PUPDR_MASK(RED_STATUS_LED, GPIO_PUPDR_NO_PULL));
 
     // Configure interrupt for column 0
     SYSCFG->EXTICR[0] &= ~(0x00F0u);
@@ -245,4 +413,7 @@ void keypad_init(void)
 
     timer_create_timer(&keypad_debounce_timer, false, KEYPAD_DEBOUNCE_PERIOD_MS, keypad_debounce_cb);
     timer_create_timer(&code_entry_timer, false, CODE_ENTRY_TIMEOUT_MS, code_entry_timeout_cb);
+
+    // Write initial keypad message to LCD
+    handle_state_transition(ENTRY_INACTIVE);
 }

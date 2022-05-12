@@ -25,7 +25,7 @@
 #define DB4 0
 
 #define INIT_DELAY_MS 100
-#define CMD_DELAY_MS 5
+#define CMD_DELAY_MS 20
 #define DATA_DELAY_MS 4
 #define TICKER_RATE_MS 400
 
@@ -34,6 +34,7 @@ typedef struct {
 	int current_shifts;
 	int length;
     char buffer[LINE_WIDTH_CHARS + 1];
+    uint8_t pad_bytes[3];
 } lcd_message_t;
 
 
@@ -66,26 +67,26 @@ static lcd_message_t display_message;
  */
 void LCD_port_init()
 {
-	//STEP 1: Enable GPIOD in RCC AHB1ENR register
-	gpio_clock_enable(RCC_AHB1ENR_GPIODEN_Pos);
+	//STEP 1: Enable GPIOE in RCC AHB1ENR register
+	gpio_clock_enable(RCC_AHB1ENR_GPIOEEN_Pos);
 
-	//STEP 2: Set MODER of GPIOD Pins 7, 6, 3, 2, 1 & 0 as outputs
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE7_Pos, GPIO_MODER_MODER7_0);
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE6_Pos, GPIO_MODER_MODER6_0);	
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE3_Pos, GPIO_MODER_MODER3_0);
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE2_Pos, GPIO_MODER_MODER2_0);
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE1_Pos, GPIO_MODER_MODER1_0);
-	gpio_pin_set_mode(GPIOD, GPIO_MODER_MODE0_Pos, GPIO_MODER_MODER0_0);
+	//STEP 2: Set MODER of GPIOE Pins 7, 6, 3, 2, 1 & 0 as outputs
+	gpio_pin_set_mode(GPIOE, GPIO_MODER_MODER7_0);
+	gpio_pin_set_mode(GPIOE, GPIO_MODER_MODER6_0);	
+	gpio_pin_set_mode(GPIOE, GPIO_MODER_MODER3_0);
+	gpio_pin_set_mode(GPIOE, GPIO_MODER_MODER2_0);
+	gpio_pin_set_mode(GPIOE, GPIO_MODER_MODER1_0);
+	gpio_pin_set_mode(GPIOE, GPIO_MODER_MODER0_0);
 
-	//STEP 3: Set OTYPER of GPIOD Pins 7, 6, 3, 2, 1 & 0 as push-pull
-	gpio_set_output_type(GPIOD, GPIO_OTYPER_OT7_Pos, 0x00);
-	gpio_set_output_type(GPIOD, GPIO_OTYPER_OT6_Pos, 0x00);
-	gpio_set_output_type(GPIOD, GPIO_OTYPER_OT3_Pos, 0x00);
-	gpio_set_output_type(GPIOD, GPIO_OTYPER_OT2_Pos, 0x00);
-	gpio_set_output_type(GPIOD, GPIO_OTYPER_OT1_Pos, 0x00);
-	gpio_set_output_type(GPIOD, GPIO_OTYPER_OT0_Pos, 0x00);
+	//STEP 3: Set OTYPER of GPIOE Pins 7, 6, 3, 2, 1 & 0 as push-pull
+	gpio_set_output_type(GPIOE, GPIO_OTYPER_OT7_Pos, 0x00);
+	gpio_set_output_type(GPIOE, GPIO_OTYPER_OT6_Pos, 0x00);
+	gpio_set_output_type(GPIOE, GPIO_OTYPER_OT3_Pos, 0x00);
+	gpio_set_output_type(GPIOE, GPIO_OTYPER_OT2_Pos, 0x00);
+	gpio_set_output_type(GPIOE, GPIO_OTYPER_OT1_Pos, 0x00);
+	gpio_set_output_type(GPIOE, GPIO_OTYPER_OT0_Pos, 0x00);
 	
-	gpio_pin_clear(GPIOD, EN);	
+	gpio_pin_clear(GPIOE, EN);	
 	//Done with LCD port Initialization
 }
 
@@ -110,7 +111,7 @@ void LCD_init()
 	timer6_delay(INIT_DELAY_MS);
 
 	// STEP 2: Set RS pin LOW to send instructions
-	gpio_pin_clear(GPIOD, RS);
+	gpio_pin_clear(GPIOE, RS);
 
 	// Send instructions using following format:
 	// Set EN=HIGH; Send 4-bit instruction; Set EN=low; delay 20ms;
@@ -138,7 +139,7 @@ void LCD_init()
 	LCD_send_cmd(LCD_CMD_SET_ENTRY_MODE | ENTRY_MODE_CURSOR_DIRECTION_RIGHT);
 
 	// STEP 8: Set Display to ON with Cursor and Blink.
-	LCD_send_cmd(LCD_CMD_DISPLAY_ON_OFF | DISPLAY_MODE_ON | DISPLAY_MODE_CURSOR | DISPLAY_MODE_BLINK);
+	LCD_send_cmd(LCD_CMD_DISPLAY_ON_OFF | DISPLAY_MODE_ON);
 }
 
 /*******************************
@@ -154,14 +155,7 @@ void LCD_init()
 
 void LCD_place_cursor(uint8_t address)
 {
-    int cur_address = 0x00;
-    LCD_send_cmd(LCD_CMD_RETURN_HOME);
-    
-    while (cur_address < address)
-    {
-        LCD_send_cmd(LCD_CMD_CURSOR_DISPLAY_SHIFT | MOVE_RIGHT);
-        cur_address++;
-    }
+    LCD_send_cmd(SET_CURSOR_ADDRESS | address);
 }
 
 
@@ -187,6 +181,39 @@ void LCD_write_char(unsigned char data)
 	LCD_putNibble(data & 0x0F);
 	timer6_delay(DATA_DELAY_MS);
 }
+
+void LCD_write_string_at_addr(char *message, write_type_t write_type, uint8_t addr, int num_chars)
+{
+	LCD_place_cursor(addr);
+	
+	int i = 0;
+
+	// Set up struct with new message
+	strncpy(display_message.buffer, message, (uint32_t)num_chars);
+    display_message.length = (int)strlen(message);
+	
+	display_message.buffer[num_chars] = '\0';
+
+	if (write_type == OFF_WHILE_WRITING)
+	{
+		// Turn off display if displaying all at once
+		LCD_send_cmd(LCD_CMD_DISPLAY_ON_OFF);
+	}
+	
+	while (display_message.buffer[i] != '\0' && i <= num_chars)
+	{
+		LCD_write_char(display_message.buffer[i]);
+		i++;
+	}	
+	
+
+	if (write_type == OFF_WHILE_WRITING)
+	{
+		// Turn display back on if it was turned off
+		LCD_send_cmd(LCD_CMD_DISPLAY_ON_OFF | DISPLAY_MODE_ON);
+	}
+}
+
 
 void LCD_write_string(char *message, write_type_t write_type)
 {
@@ -267,16 +294,16 @@ static void LCD_putNibble(uint8_t nibble)
 {
 	// Send instructions using following format:
 	// Set EN=HIGH; Send 4-bit instruction; Set EN=low; delay 20ms;
-	gpio_pin_set(GPIOD, EN);
+	gpio_pin_set(GPIOE, EN);
 
 	// Set pins for nibble
-	gpio_pin_set_level(GPIOD, DB7, (bool)(nibble & (1 << 3)));
-	gpio_pin_set_level(GPIOD, DB6, (bool)(nibble & (1 << 2)));
-	gpio_pin_set_level(GPIOD, DB5, (bool)(nibble & (1 << 1)));
-	gpio_pin_set_level(GPIOD, DB4, (bool)(nibble & (1 << 0)));
+	gpio_pin_set_level(GPIOE, DB7, (bool)(nibble & (1 << 3)));
+	gpio_pin_set_level(GPIOE, DB6, (bool)(nibble & (1 << 2)));
+	gpio_pin_set_level(GPIOE, DB5, (bool)(nibble & (1 << 1)));
+	gpio_pin_set_level(GPIOE, DB4, (bool)(nibble & (1 << 0)));
 	
 	// Set EN = LOW
-	gpio_pin_clear(GPIOD, EN);
+	gpio_pin_clear(GPIOE, EN);
 	
 }
 
@@ -285,7 +312,7 @@ void LCD_send_cmd(uint8_t cmd)
 {
 
 	// STEP 2: Set RS pin LOW to send instructions
-	gpio_pin_clear(GPIOD, RS);
+	gpio_pin_clear(GPIOE, RS);
 
 	// Send upper 4 bits
 	LCD_putNibble(cmd >> 4);
@@ -293,7 +320,7 @@ void LCD_send_cmd(uint8_t cmd)
 	// Send lower four bits
 	LCD_putNibble(cmd & 0x0F);
 	
-	gpio_pin_set(GPIOD, RS);
+	gpio_pin_set(GPIOE, RS);
 	
 	timer6_delay(CMD_DELAY_MS);
 }
