@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "break_beam.h"
 #include "global_config_info.h"
 #include "LCD.h"
 #include "lcd_layout.h"
@@ -26,14 +27,14 @@
 #define PSC_FREQ_HZ 180000
 #define POSITION_0_COMPARE_VAL 88
 #define MAX_ANGLE 180
-#define OPEN_ANGLE 90
-#define CLOSED_ANGLE 0
+#define CLOSED_ANGLE 35
+#define OPEN_ANGLE (CLOSED_ANGLE + 90)
 #define DOOR_OPEN_TIME_S 5
 #define STEP_SIZE_DEGREES 1
 
 /* File Scope Variables */
 static timer_t servo_timer;
-static uint32_t servo_angle = 0;
+static uint32_t servo_angle;
 static door_state_t current_state = DOOR_STATE_CLOSING;
 static door_state_t previous_state = DOOR_STATE_CLOSING;
 
@@ -105,11 +106,14 @@ static void servo_timer_cb(void)
             if (servo_angle <= CLOSED_ANGLE)
             {
                 servo_control_handle_state_transition(DOOR_STATE_CLOSED);
+                // Make sure break beam is disabled if it was not tripped
+                disable_break_beam();
             }
             else
             {
                 servo_angle -= STEP_SIZE_DEGREES;
                 servo_set_angle(servo_angle);
+                enable_break_beam();
             }
             break;
         }
@@ -173,7 +177,8 @@ static void servo_set_angle(uint32_t angle)
     // Each tick has a resolution of 1 degree due to PSC value
     // 0 degrees is at 180 ticks and 180 degrees is at 360 ticks
     // 180 degrees is maximum movement
-
+    servo_angle = angle;
+    
     if (angle > MAX_ANGLE)
     {
         angle = MAX_ANGLE;
@@ -241,6 +246,7 @@ void servo_init(void)
     uint32_t servo_timer_period_ms = DOOR_OPEN_TIME_S * 1000 / (OPEN_ANGLE - CLOSED_ANGLE) * STEP_SIZE_DEGREES;
     servo_pwm_init();
     timer6_delay(100);
+    servo_set_angle(CLOSED_ANGLE);
     timer_create_timer(&servo_timer, true, servo_timer_period_ms, servo_timer_cb);
     timer_start_timer(&servo_timer);
     servo_control_handle_state_transition(DOOR_STATE_CLOSED);

@@ -53,31 +53,25 @@ static void transition_to_unoccupied_state_cb(void)
 
 void motion_detector_handle_state_transition(occupancy_state_t new_state)
 {
-    if (new_state != occupancy_state)
+    occupancy_state = new_state;
+
+    switch (occupancy_state)
     {
-        occupancy_state = new_state;
-
-        switch (occupancy_state)
+        case GARAGE_UNOCCUPIED:
         {
-            case GARAGE_UNOCCUPIED:
-            {
-                gpio_pin_clear(GPIOE, WHITE_LED);
+            gpio_pin_clear(GPIOE, WHITE_LED);
 
-                // Close the garage door
-                servo_control_close_door();
-                timer_stop_timer(&occupancy_timer);
-                break;
-            }
+            // Close the garage door
+            servo_control_close_door();
+            timer_stop_timer(&occupancy_timer);
+            break;
+        }
 
-            case GARAGE_OCCUPIED:
-            {
-                gpio_pin_set(GPIOE, WHITE_LED);
-                if (!timer_is_timer_active(&occupancy_timer))
-                {
-                    timer_start_timer(&occupancy_timer);
-                }
-                break;
-            }
+        case GARAGE_OCCUPIED:
+        {
+            gpio_pin_set(GPIOE, WHITE_LED);
+            timer_start_timer(&occupancy_timer);
+            break;
         }
     }
 }

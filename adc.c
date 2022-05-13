@@ -46,7 +46,7 @@ static void update_temp_and_light_values_cb(void)
     double temp_c = ((averages[TEMP_SENSOR] - 0.5) * 100);
     int temp_f = (int)((9 * temp_c) / 5 + 32.0);
     sprintf(temperature, "%dF", temp_f);
-    LCD_write_string_at_addr(temperature, ON_WHILE_WRITING, TEMP_START_ADDR, strlen(temperature));
+    LCD_write_string_at_addr(temperature, ON_WHILE_WRITING, TEMP_START_ADDR, (int)strlen(temperature));
 }
 
 
