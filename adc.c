@@ -41,6 +41,12 @@ static char temperature[5];
 
 
 /* Function Definitions */
+
+double adc_get_light_level(void)
+{
+    return averages[LIGHT_SENSOR];
+}
+
 static void update_temp_and_light_values_cb(void)
 {
     double temp_c = ((averages[TEMP_SENSOR] - 0.5) * 100);

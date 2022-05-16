@@ -19,7 +19,6 @@
 #define INT_DELAY_MS 5000
 #define OCCUPANCY_TIMEOUT_S 10
 #define INIT_TIME_S 60
-#define WHITE_LED 10
 
 
 /* File Scope Variables */
@@ -59,8 +58,6 @@ void motion_detector_handle_state_transition(occupancy_state_t new_state)
     {
         case GARAGE_UNOCCUPIED:
         {
-            gpio_pin_clear(GPIOE, WHITE_LED);
-
             // Close the garage door
             servo_control_close_door();
             timer_stop_timer(&occupancy_timer);
@@ -69,7 +66,6 @@ void motion_detector_handle_state_transition(occupancy_state_t new_state)
 
         case GARAGE_OCCUPIED:
         {
-            gpio_pin_set(GPIOE, WHITE_LED);
             timer_start_timer(&occupancy_timer);
             break;
         }
@@ -119,10 +115,6 @@ void motion_detector_init(void)
 
 	// Set PUPDR for button
 	gpio_set_pupdr(GPIOC, GPIO_CREATE_MODE_MASK(MOTION_PIN, GPIO_PUPDR_NO_PULL));
-
-    // Initialize status LED for now
-    gpio_pin_set_mode(GPIOE, GPIO_CREATE_MODE_MASK(WHITE_LED, GPIO_MODE_OUTPUT));
-    gpio_set_pupdr(GPIOE, GPIO_CREATE_PUPDR_MASK(WHITE_LED, GPIO_PUPDR_NO_PULL));
     
     // Enable motion detector interrupt
     

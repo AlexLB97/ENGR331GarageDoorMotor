@@ -10,6 +10,7 @@
 
 #include "adc.h"
 #include "break_beam.h"
+#include "interior_lighting.h"
 #include "keypad.h"
 #include "lab_gpio.h"
 #include "lab_interrupts.h"
@@ -65,6 +66,8 @@ int main(void)
     servo_init();
 
     motion_detector_init();
+
+    interior_lighting_init();
 
     // Enable interrupts
     interrupts_init_interrupts();
