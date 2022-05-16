@@ -47,10 +47,16 @@ double adc_get_light_level(void)
     return averages[LIGHT_SENSOR];
 }
 
-static void update_temp_and_light_values_cb(void)
+int adc_get_temp(void)
 {
     double temp_c = ((averages[TEMP_SENSOR] - 0.5) * 100);
     int temp_f = (int)((9 * temp_c) / 5 + 32.0);
+    return temp_f;
+}
+
+static void update_temp_and_light_values_cb(void)
+{
+    int temp_f = adc_get_temp();
     sprintf(temperature, "%dF", temp_f);
     LCD_write_string_at_addr(temperature, ON_WHILE_WRITING, TEMP_START_ADDR, (int)strlen(temperature));
 }

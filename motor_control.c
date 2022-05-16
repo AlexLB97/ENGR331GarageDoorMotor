@@ -12,9 +12,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "adc.h"
+#include "event_queue.h"
 #include "global_config_info.h"
 #include "lab_gpio.h"
 #include "lab_timers.h"
+#include "motion_detector.h"
 #include "stm32f407xx.h"
 #include "system_events.h"
 
@@ -24,10 +27,18 @@
 #define MOTOR_PWM_AF_NUM       2u
 #define PWM_FREQ_HZ            150u
 #define MOTOR_DUTY_CYCLE_PCT   75
-#define SPIN_FORWARD_PIN          RED_LED
-#define SPIN_BACKWARDS_PIN         GREEN_LED
+#define SPIN_FORWARD_PIN       RED_LED
+#define SPIN_BACKWARDS_PIN     ORANGE_LED
+#define FAN_TIMER_PERIOD_MS    1000
+#define FAN_ON_THRESH_DEGREES  81
+#define FAN_OFF_THRESH_DEGREES (FAN_ON_THRESH_DEGREES - 3)
+#define FAN_START_DUTY_PCT     20
+#define MAX_SPEED_TEMP         (FAN_ON_THRESH_DEGREES + 10)
+#define DUTY_SLOPE             ((100 - FAN_START_DUTY_PCT) / (MAX_SPEED_TEMP - FAN_ON_THRESH_DEGREES))
 
-/* Type Definitions */
+/* File Scope Variables */
+static timer_t periodic_fan_timer;
+static bool fan_on = false;
 
 /* Static function declarations */
 
@@ -98,7 +109,39 @@ static void motor_pwm_init(void)
 static void set_pwm_duty_cycle(uint32_t duty_pct)
 {
     TIM4->CCR4 = (TIM4->ARR * duty_pct) / 100;
-    TIM4->CNT = 0;
+}
+
+static void update_fan_state_cb(void)
+{
+    if (motion_detector_get_occupancy_state() == GARAGE_OCCUPIED)
+    {
+        int temp = adc_get_temp();
+        if (temp >= FAN_ON_THRESH_DEGREES)
+        {
+            fan_on = true;
+            gpio_pin_set(GPIOD, SPIN_FORWARD_PIN);
+            uint32_t duty_pct = FAN_START_DUTY_PCT + (DUTY_SLOPE * (temp - FAN_ON_THRESH_DEGREES));
+            set_pwm_duty_cycle(duty_pct);
+        }
+        else if (temp > FAN_OFF_THRESH_DEGREES && fan_on)
+        {
+            set_pwm_duty_cycle(FAN_START_DUTY_PCT);
+        }
+        else
+        {
+            fan_on = false;
+            set_pwm_duty_cycle(0);
+        }
+    }
+    else
+    {
+        set_pwm_duty_cycle(0);
+    }
+}
+
+static void fan_timer_cb(void)
+{
+    queue_add_event(update_fan_state_cb);
 }
 
 void motor_control_init(void)
@@ -117,4 +160,11 @@ void motor_control_init(void)
 	// Set pull to none for all LEDs in use
 	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(SPIN_FORWARD_PIN, GPIO_PUPDR_NO_PULL));
 	gpio_set_pupdr(GPIOD, GPIO_CREATE_PUPDR_MASK(SPIN_BACKWARDS_PIN, GPIO_PUPDR_NO_PULL));
+
+    // Create timer to update the fan state
+    timer_create_timer(&periodic_fan_timer, true, FAN_TIMER_PERIOD_MS, fan_timer_cb);
+    timer_start_timer(&periodic_fan_timer);
+
+    gpio_pin_clear(GPIOD, SPIN_BACKWARDS_PIN);
+    gpio_pin_clear(GPIOD, SPIN_FORWARD_PIN);
 }

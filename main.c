@@ -69,6 +69,8 @@ int main(void)
 
     interior_lighting_init();
 
+    motor_control_init();
+
     // Enable interrupts
     interrupts_init_interrupts();
 
