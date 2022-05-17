@@ -182,6 +182,7 @@ void LCD_write_char(unsigned char data)
 	timer6_delay(DATA_DELAY_MS);
 }
 
+// Function for writing a string to a specific address on the LCD
 void LCD_write_string_at_addr(char *message, write_type_t write_type, uint8_t addr, int num_chars)
 {
 	LCD_place_cursor(addr);
@@ -214,7 +215,8 @@ void LCD_write_string_at_addr(char *message, write_type_t write_type, uint8_t ad
 	}
 }
 
-
+// Function for writing a string on the first line of the LCD. String will automatically scroll if it exceeds
+// the width of the LCD.
 void LCD_write_string(char *message, write_type_t write_type)
 {
 	// Set up struct with new message
@@ -260,6 +262,7 @@ void LCD_write_string(char *message, write_type_t write_type)
 	}
 }
 
+// Function for managing ticker-style shifting
 static void message_shift_cb(void)
 {		
 	if (display_message.current_shifts == 0)
@@ -290,6 +293,7 @@ static void message_shift_cb(void)
 	}
 }
 
+// Function for writing a nibble to the LCD
 static void LCD_putNibble(uint8_t nibble)
 {
 	// Send instructions using following format:
@@ -307,7 +311,7 @@ static void LCD_putNibble(uint8_t nibble)
 	
 }
 
-
+// Function for sending a command to the LCD
 void LCD_send_cmd(uint8_t cmd)
 {
 

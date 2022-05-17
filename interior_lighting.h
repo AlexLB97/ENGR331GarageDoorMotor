@@ -8,14 +8,6 @@
 #ifndef INTERIOR_LIGHTING_H
 #define INTERIOR_LIGHTING_H
 
-#include "motion_detector.h"
-
-
-typedef enum {
-    LIGHT_ON = 0,
-    LIGHT_OFF
-} interior_lighting_state_t;
-
 void interior_lighting_init(void);
 
 #endif

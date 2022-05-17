@@ -1,3 +1,6 @@
+/** 
+ * Authors: Alex Bourdage, Sophie Woessner
+ */
 #ifndef LAB_TIMERS_H
 #define LAB_TIMERS_H
 #include "stm32f4xx.h"

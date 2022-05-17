@@ -10,6 +10,7 @@
 #include "adc.h"
 #include "lab_gpio.h"
 #include "lab_timers.h"
+#include "motion_detector.h"
 #include "event_queue.h"
 
 
@@ -27,15 +28,25 @@
 #define LIGHT_OFF_THRESHOLD (LIGHT_ON_THRESHOLD + LIGHT_OFF_HYSTERESIS)
 #define WHITE_LED 10
 
+/* Typedefs */
+
+// Type for keeping track of LED state in a readable way
+typedef enum {
+    LIGHT_ON = 0,
+    LIGHT_OFF
+} interior_lighting_state_t;
+
 /* Static Function Declarations */
 static void periodic_lighting_cb(void);\
 static void update_interior_lighting_cb(void);
+static void change_light_state(interior_lighting_state_t state);
 
 /* File scope variable declarations */
 static timer_t lighting_timer;
 
 /*Function Definitions */
 
+// Function for transitioning the light between on and off states.
 static void change_light_state(interior_lighting_state_t state)
 {
     if (state == LIGHT_ON)
@@ -48,11 +59,14 @@ static void change_light_state(interior_lighting_state_t state)
     }
 }
 
+// Callback for the timer that periodically updates the state of the LED
 static void periodic_lighting_cb(void)
 {
     queue_add_event(update_interior_lighting_cb);
 }
 
+// Callback from executed from the main loop that updated the state of the LED based on
+// current occupancy and lighting conditions.
 static void update_interior_lighting_cb(void)
 {
     if (motion_detector_get_occupancy_state() == GARAGE_OCCUPIED)
@@ -73,12 +87,14 @@ static void update_interior_lighting_cb(void)
     }
 }
 
+// Function to initialize the module by creating timers and configuring GPIO.
 void interior_lighting_init(void)
 {
     timer_create_timer(&lighting_timer, true, LIGHTING_TIMER_PERIOD_MS, periodic_lighting_cb);
     timer_start_timer(&lighting_timer);
 
     // Initialize interior LED
+    gpio_clock_enable(RCC_AHB1ENR_GPIOEEN_Pos);
     gpio_pin_set_mode(GPIOE, GPIO_CREATE_MODE_MASK(WHITE_LED, GPIO_MODE_OUTPUT));
     gpio_set_pupdr(GPIOE, GPIO_CREATE_PUPDR_MASK(WHITE_LED, GPIO_PUPDR_NO_PULL));
 }

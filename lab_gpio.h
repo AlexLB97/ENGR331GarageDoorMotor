@@ -1,3 +1,6 @@
+/**
+ * Authors: Alex Bourdage, Sophie Woessner
+ */
 #ifndef _LAB_GPIO_H
 #define _LAB_GPIO_H
 

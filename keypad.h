@@ -25,7 +25,4 @@
  */
 void keypad_init(void);
 
-
-
-
 #endif

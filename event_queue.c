@@ -2,7 +2,8 @@
  * Authors: Alex Bourdage and Sophie Woessner
  * 
  * Goal: Create a queue module that allows the main loop to
- * execute system events at a lower priority.
+ * execute system events at a lower priority and sequentially.
+ * Used primarily to organize writes to the LCD.
  */
 
 #include "event_queue.h"
@@ -11,19 +12,23 @@
 
 #include "lab_timers.h"
 
+/* File Scope Variables */
 static event_queue_t event_queue;
 
+
+/* Static Function Definitions */
 static bool queue_process_next_event(void);
 
-/**
- * @brief Allocates space and performs initialization for the queue.
- */
+
+// Allocates space and performs initialization for the queue.
 void queue_init(void)
 {
     event_queue.front_index = 0;
     event_queue.size = 0;
 }
 
+// Adds an event to the next open spot in the queue, wrapping back to the front after
+// exceeding the length of the queue
 void queue_add_event(queue_event_cb cb)
 {
     if (event_queue.size < QUEUE_SIZE)

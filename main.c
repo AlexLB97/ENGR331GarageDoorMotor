@@ -2,6 +2,9 @@
  * Alex Bourdage
  * Sophie Woessner
  * 
+ * Goal: Develop an integrated garage door system application.
+ * Detailed requirements can be found in the final report and associated
+ * documentation.
  */
 
 /* Includes */

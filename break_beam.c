@@ -41,9 +41,10 @@ void EXTI15_10_IRQHandler(void)
 {
     if (break_beam_enabled)
     {
-        // Transition motor to stopped state
+        // Open the door again if beam was broken
         servo_control_handle_state_transition(DOOR_STATE_OPENING);
         
+        // Break beam is now disabled. Will be reactivated again when door starts to close.
         break_beam_enabled = false;
     }
 

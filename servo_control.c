@@ -52,17 +52,20 @@ static void clear_door_status_region(void);
 
 /* Function Definitions */
 
+// Helper function for clearing door state section of LCD
 static void clear_door_status_region(void)
 {
     LCD_write_string_at_addr(clear_string, ON_WHILE_WRITING, FIRST_LINE_STRT_ADDR, (int)strlen(clear_string));
 }
 
+// Function to update the current status
 static void update_status_cb(void)
 {
     clear_door_status_region();
     LCD_write_string_at_addr(state_strings[current_state], ON_WHILE_WRITING, FIRST_LINE_STRT_ADDR, (int)strlen(state_strings[current_state]));
 }
 
+/* Helper functions for other modules to control door state */
 void servo_control_close_door(void)
 {
     servo_control_handle_state_transition(DOOR_STATE_CLOSING);
@@ -78,6 +81,8 @@ void servo_control_stop_door(void)
     servo_control_handle_state_transition(DOOR_STATE_STOPPED);
 }
 
+// Servo timer is always active. It only causes a change in servo angle when in either opening 
+// or closing states.
 static void servo_timer_cb(void)
 {
     switch(current_state)
@@ -92,16 +97,20 @@ static void servo_timer_cb(void)
         {
             if (servo_angle >= OPEN_ANGLE)
             {
+                // Door is completely open. Transition states
                 servo_control_handle_state_transition(DOOR_STATE_OPEN);
             }
             else
             {
+                // Door motion in progress
                 if (motion_detector_get_occupancy_state() == GARAGE_UNOCCUPIED)
                 {
                     // Transitioning to active state any time the door opens ensure that the occupancy timeout will be running
                     // and attempt to close the door again after a period of time.
                     queue_add_event(transition_to_occupied_state_cb);
                 }
+                
+                // Gradually increase servo angle to open the door
                 servo_angle += STEP_SIZE_DEGREES;
                 servo_set_angle(servo_angle);
             }
@@ -112,6 +121,7 @@ static void servo_timer_cb(void)
         {
             if (servo_angle <= CLOSED_ANGLE)
             {
+                // Door state closed. Handle transition
                 servo_control_handle_state_transition(DOOR_STATE_CLOSED);
                 // Make sure break beam is disabled if it was not tripped
                 disable_break_beam(); 
@@ -119,11 +129,13 @@ static void servo_timer_cb(void)
                 // Enter low power mode if the door closes and nobody is in the garage
                 if (motion_detector_get_occupancy_state() == GARAGE_UNOCCUPIED)
                 {
+                    // If closing due to occupancy timeout, enter low power mode immediately
                     low_power_schedule_sleep();
                 }
             }
             else
             {
+                // Door is closing. Gradually reduce servo angle.
                 servo_angle -= STEP_SIZE_DEGREES;
                 servo_set_angle(servo_angle);
                 enable_break_beam();
@@ -133,7 +145,7 @@ static void servo_timer_cb(void)
     }
 }
 
-
+// Function to initialize the PWM used to control the servo
 static void servo_pwm_init(void)
 {
     // Enable clock to GPIOD
@@ -185,6 +197,7 @@ static void servo_pwm_init(void)
     servo_set_angle(CLOSED_ANGLE);
 }
 
+// Function for setting the servo angle
 static void servo_set_angle(uint32_t angle)
 {
     // Each tick has a resolution of 1 degree due to PSC value
@@ -200,6 +213,7 @@ static void servo_set_angle(uint32_t angle)
     TIM3->CCR3 = POSITION_0_COMPARE_VAL + (angle * 2);
 }
 
+// Getter method for providing the current door state to other modules
 door_state_t servo_control_get_current_state(void)
 {
     return current_state;
@@ -240,6 +254,7 @@ door_state_t servo_control_get_next_state(void)
     }
 }
 
+// Function for centralizing logic around state transitions
 void servo_control_handle_state_transition(door_state_t next_state)
 {
     if (next_state != current_state)

@@ -168,13 +168,15 @@ void SysTick_Handler(void)
     check_for_expired_timers();
 }
 
+// Function to be called from the interrupt handler to determine whether or not any timers have expired.
+// Callbacks are executed for expired timers.
 static void check_for_expired_timers(void)
 {
     for (int i = 0; i < num_active_timers; i++)
     {
         if (timer_list[i]->expiration_ticks < ticks)
-        {
-            timer_list[i]->timer_active = false;
+        {   
+            // Timer has expired, execute callback
             timer_list[i]->cb();
             if (timer_list[i]->repeating)
             {
@@ -243,6 +245,7 @@ void timer_stop_timer(timer_t *pTimer)
     remove_timer_from_list(pTimer);
 }
 
+/* Helper method to remove a timer from the list */
 static void remove_timer_from_list(timer_t *pTimer)
 {
     for (int i = 0; i < num_active_timers; i++)
@@ -255,6 +258,7 @@ static void remove_timer_from_list(timer_t *pTimer)
     }
 }
 
+/* Helper method to shift timers in array after removing one */
 static void shift_timers_left(int start_index)
 {
     for (int i = start_index; i < num_active_timers - 1; i++)

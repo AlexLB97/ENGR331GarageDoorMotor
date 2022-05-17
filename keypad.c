@@ -2,7 +2,7 @@
  * Alex Bourdage
  * Sophie Woessner
  * 
- * Module for managing input from the keypad.
+ * Module for decoding and validating input from the keypad.
  * 
  */
 
@@ -38,29 +38,38 @@ typedef enum entry_state_t {
 } entry_state_t;
 
 /* File scope variables */
+
+// Matrix that defines the location of each key on the keypad.
 static char keypad_array[4][3] = {{'1','2','3'},
                                   {'4','5','6'},
                                   {'7','8','9'},
                                   {'*','0','#'}};
 
+// Code that opens the garage door is stored here.
 static char correct_code[] = "2539";
 static char default_code[] = "0000";
+
+// Buffer to hold the code that is currently being entered
 static char entered_code[CODE_LENGTH + 1];
 
+// String definitons for different states
 static char idle_string[] = "Enter Code";
 static char success_string[] = "Success";
 static char fail_string[] = "Wrong Code";
 static char empty_row[] = "                ";
 static char ENTER_BUTTON = '#';
 
+// Variable to keep track of current location in code entry
 static int current_code_index = 0;
 
-
+// Space is allocated here for timers that this module uses.
 static timer_t keypad_debounce_timer;
 static timer_t code_entry_timer;
 
+// Boolean used to debounce button presses
 static bool button_press_allowed = true;
 
+// Variable to keep track of current keypad state
 static entry_state_t current_entry_state = ENTRY_INACTIVE;
 
 /* External Function Declarations */
@@ -85,6 +94,8 @@ static void display_idle_string_cb(void);
 
 
 /* Callbacks to execute LCD writes from the main loop */
+
+// Function to clear the idle text and present the first key pressed.
 static void transition_to_active_state_cb(void)
 {
         clear_passcode_region();
@@ -92,21 +103,25 @@ static void transition_to_active_state_cb(void)
         LCD_write_string_at_addr(entered_code, ON_WHILE_WRITING, (SECOND_LINE_STRT_ADDR), current_code_index);
 }
 
+// Refreshes the display and adds the next character to the screen
 static void entry_active_cb(void)
 {
     LCD_write_string_at_addr(entered_code, ON_WHILE_WRITING, (SECOND_LINE_STRT_ADDR), current_code_index);
 }
 
+// Displays the text associated with an incorrect code
 static void display_fail_string_cb(void)
 {
     change_keypad_message(fail_string);
 }
 
+// Displays the text associated with the correct code.
 static void display_success_string_cb(void)
 {
     change_keypad_message(success_string);
 }
 
+// Displays the text associated with entry being inactive
 static void display_idle_string_cb(void)
 {
     change_keypad_message(idle_string);
@@ -115,6 +130,7 @@ static void display_idle_string_cb(void)
 
 /* Functions */
 
+// Function to restart button press timer
 static void reset_button_press_timer(void)
 {
     // Start or reset code entry timer
@@ -128,27 +144,32 @@ static void reset_button_press_timer(void)
     }
 }
 
+// Function to clear the keypad message and write a new message in its place
 static void change_keypad_message(char *message)
 {
     clear_passcode_region();
     LCD_write_string_at_addr(message, ON_WHILE_WRITING, SECOND_LINE_STRT_ADDR, (int)strlen(message));
 }
 
+// Function to clear the keypad region of the display
 static void clear_passcode_region(void)
 {
     LCD_write_string_at_addr(empty_row, ON_WHILE_WRITING, SECOND_LINE_STRT_ADDR, (int)strlen(empty_row));
     LCD_place_cursor(SECOND_LINE_STRT_ADDR);
 }
 
+// Function to re-enable button presses after the debounce timeout
 static void keypad_debounce_cb(void) 
 {
     button_press_allowed = true;
 }
 
+// Function to evaluate the code that was entered and take approprate action
 static void evaluate_code(void)
 {
     if (!strncmp(entered_code, correct_code, CODE_LENGTH + 1))
     {
+        // Code entered was correct. Go to next door state
         door_state_t next_state = servo_control_get_next_state();
         servo_control_handle_state_transition(next_state);
         queue_add_event(display_success_string_cb);
@@ -156,17 +177,19 @@ static void evaluate_code(void)
     }
     else
     {
+        // Code entered was incorrect
         queue_add_event(display_fail_string_cb);
         gpio_pin_set(GPIOE, RED_STATUS_LED);
     }
 }
 
-
+// Function to transition back to inactive state if code entry is not finished
 static void code_entry_timeout_cb(void)
 {
     handle_state_transition(ENTRY_INACTIVE);
 }
 
+// Function to validate button presses and add valid presses to the buffer
 static bool record_button_press(char button)
 {
     if (button >= '0' && button <= '9')
@@ -177,6 +200,7 @@ static bool record_button_press(char button)
     return false;
 }
 
+// Function that centralizes the logic associated with moving between states.
 static void handle_state_transition(entry_state_t next_state)
 {
     current_entry_state = next_state;
@@ -225,6 +249,7 @@ static void handle_state_transition(entry_state_t next_state)
     }
 }
 
+// Function to take centralize logic around responding to button presses
 static void handle_keypad_action(char button)
 {
     switch (current_entry_state)
@@ -278,6 +303,8 @@ static void handle_keypad_action(char button)
     }
 }
 
+// Function for scanning the keypad inputs and determining which row
+// is driving the interrupt.
 static int get_button_row(int col)
 {
     uint8_t rows[4] = {R0, R1, R2, R3};
@@ -316,6 +343,8 @@ static void keypad_button_press_handler(uint8_t column)
     handle_keypad_action(keypad_array[row][column - 1]);
 }
 
+// Interrupt handlers for identifying when a column goes high.
+
 void EXTI1_IRQHandler(void)
 {
     if (button_press_allowed)
@@ -343,7 +372,7 @@ void EXTI3_IRQHandler(void)
     EXTI->PR |= 1 << 3;
 }
 
-
+// Function for initializing the keypad module
 void keypad_init(void)
 {
     // Enable clock for port D

@@ -36,23 +36,28 @@ static void occupancy_timer_cb(void);
 
 /* Function Definitions */
 
+// Getter method to provide the current occupancy state to other modules
 occupancy_state_t motion_detector_get_occupancy_state(void)
 {
     return occupancy_state;
 }
 
+// Callback that handles the transition from unoccupied to occupied state
 void transition_to_occupied_state_cb(void)
 {
     motion_detector_handle_state_transition(GARAGE_OCCUPIED);
 }
 
+// Callback that handles the transition from occupied ot unoccupied state
 static void transition_to_unoccupied_state_cb(void)
 {
     motion_detector_handle_state_transition(GARAGE_UNOCCUPIED);
 }
 
+// Function to centralize the state transition sequences.
 void motion_detector_handle_state_transition(occupancy_state_t new_state)
 {
+    // Update module-level state
     occupancy_state = new_state;
 
     switch (occupancy_state)
@@ -61,12 +66,14 @@ void motion_detector_handle_state_transition(occupancy_state_t new_state)
         {
             if (servo_control_get_current_state() == DOOR_STATE_CLOSED)
             {
+                // Enter low power mode if the garage is closed and unoccupied
                 low_power_schedule_sleep();
             }
             else
             {
                 // Close the garage door
                 servo_control_close_door();
+                // Stop the occupancy timer 
                 timer_stop_timer(&occupancy_timer);
             }
             break;
@@ -74,6 +81,7 @@ void motion_detector_handle_state_transition(occupancy_state_t new_state)
 
         case GARAGE_OCCUPIED:
         {
+            // Start the occupancy timer
             timer_start_timer(&occupancy_timer);
             break;
         }
@@ -89,10 +97,14 @@ void EXTI4_IRQHandler(void)
     {
         // Start timer and disallow interrupts to throttle back
         motion_detection_active = false;
+
+        // Start timer that prevents high interrupt frequency from motion detector
         timer_start_timer(&input_delay_timer);
 
+        // Reset the occupancy timer each time motion is detected
         timer_reset_timer(&occupancy_timer);
 
+        // Handle transition to occupied state if necessary.
         queue_add_event(transition_to_occupied_state_cb);
     }
 
@@ -100,18 +112,19 @@ void EXTI4_IRQHandler(void)
     EXTI->PR |= (1 << MOTION_PIN);
 }
 
+// Allow another interrupt from the motion detector
 static void delay_timer_cb(void)
 {
     motion_detection_active = true;
 }
 
-
+// Transition to unoccupied state when no motion is detected for extended period of time
 static void occupancy_timer_cb(void)
 {
     queue_add_event(transition_to_unoccupied_state_cb);
 }
 
-
+// Initialize motion detector module
 void motion_detector_init(void)
 {
     // Initialize clock for port C if not enabled

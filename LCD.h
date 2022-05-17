@@ -1,3 +1,7 @@
+/**
+* Authors: Alex Bourdage, Sophie Woessner
+* Module for controlling the LCD screen.
+*/
 #ifndef _LCD_H_
 #define _LCD_H_
 

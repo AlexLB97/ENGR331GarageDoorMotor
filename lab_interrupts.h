@@ -1,3 +1,6 @@
+/**
+ * Authors: Alex Bourdage, Sophie Woessner
+ */
 #ifndef LAB_INTERRUPTS_H
 #define LAB_INTERRUPTS_H
 

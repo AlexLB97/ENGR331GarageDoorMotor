@@ -19,7 +19,6 @@
 #include "lab_timers.h"
 #include "motion_detector.h"
 #include "stm32f407xx.h"
-#include "system_events.h"
 
 
 /* Preprocessor Definitions */
@@ -111,16 +110,20 @@ static void set_pwm_duty_cycle(uint32_t duty_pct)
     TIM4->CCR4 = (TIM4->ARR * duty_pct) / 100;
 }
 
+// Updates the state of the fan based on occupancy and temperature
 static void update_fan_state_cb(void)
 {
     if (motion_detector_get_occupancy_state() == GARAGE_OCCUPIED)
     {
+        // Get current temp
         int temp = adc_get_temp();
         if (temp >= FAN_ON_THRESH_DEGREES)
         {
+            // Temperature is above threshold - turn on fan
             fan_on = true;
-            gpio_pin_set(GPIOD, SPIN_FORWARD_PIN);
-            uint32_t duty_pct = FAN_START_DUTY_PCT + (DUTY_SLOPE * (temp - FAN_ON_THRESH_DEGREES));
+
+            // Scale fan speed based on temperature until it hits max speed.
+            uint32_t duty_pct = (uint32_t) (FAN_START_DUTY_PCT + (DUTY_SLOPE * (temp - FAN_ON_THRESH_DEGREES)));
             if (duty_pct > 100)
             {
                 // Prevent duty cycle from exceeding 100
@@ -130,20 +133,25 @@ static void update_fan_state_cb(void)
         }
         else if (temp > FAN_OFF_THRESH_DEGREES && fan_on)
         {
+            // Maintain minimum speed until temperature is below the fan on threshold
+            // by some margin
             set_pwm_duty_cycle(FAN_START_DUTY_PCT);
         }
         else
         {
+            // Turn off fan
             fan_on = false;
             set_pwm_duty_cycle(0);
         }
     }
     else
     {
+        // Garage is unoccupied - fan is off regardless of temperature.
         set_pwm_duty_cycle(0);
     }
 }
 
+// Function to periodicall update the state of the fan
 static void fan_timer_cb(void)
 {
     queue_add_event(update_fan_state_cb);
@@ -172,4 +180,7 @@ void motor_control_init(void)
 
     gpio_pin_clear(GPIOD, SPIN_BACKWARDS_PIN);
     gpio_pin_clear(GPIOD, SPIN_FORWARD_PIN);
+
+    // Set logic pin on H-Bridge to be always on. PWM will control speed
+    gpio_pin_set(GPIOD, SPIN_FORWARD_PIN);
 }
