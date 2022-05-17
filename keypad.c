@@ -153,7 +153,6 @@ static void evaluate_code(void)
         servo_control_handle_state_transition(next_state);
         queue_add_event(display_success_string_cb);
         gpio_pin_set(GPIOE, GREEN_STATUS_LED);
-        queue_add_event(transition_to_occupied_state_cb);
     }
     else
     {

@@ -8,6 +8,7 @@
 #include "event_queue.h"
 #include "lab_gpio.h"
 #include "lab_timers.h"
+#include "low_power.h"
 #include "motion_detector.h"
 #include "servo_control.h"
 
@@ -17,7 +18,7 @@
 /* Preprocessor Definitions */
 #define MOTION_PIN 4
 #define INT_DELAY_MS 5000
-#define OCCUPANCY_TIMEOUT_S 10
+#define OCCUPANCY_TIMEOUT_S 30
 #define INIT_TIME_S 60
 
 
@@ -58,9 +59,16 @@ void motion_detector_handle_state_transition(occupancy_state_t new_state)
     {
         case GARAGE_UNOCCUPIED:
         {
-            // Close the garage door
-            servo_control_close_door();
-            timer_stop_timer(&occupancy_timer);
+            if (servo_control_get_current_state() == DOOR_STATE_CLOSED)
+            {
+                low_power_schedule_sleep();
+            }
+            else
+            {
+                // Close the garage door
+                servo_control_close_door();
+                timer_stop_timer(&occupancy_timer);
+            }
             break;
         }
 
@@ -115,7 +123,7 @@ void motion_detector_init(void)
 
 	// Set PUPDR for button
 	gpio_set_pupdr(GPIOC, GPIO_CREATE_MODE_MASK(MOTION_PIN, GPIO_PUPDR_NO_PULL));
-    
+
     // Enable motion detector interrupt
     
     // Set ICR Register
@@ -130,5 +138,8 @@ void motion_detector_init(void)
     // Create timer to throttling back motion sensor input a bit
     timer_create_timer(&input_delay_timer, false, INT_DELAY_MS, delay_timer_cb);
     timer_create_timer(&occupancy_timer, false, (OCCUPANCY_TIMEOUT_S * 1000), occupancy_timer_cb);
+    
+    // Device boots because motion was detected. Transition to occupied state immediately.
+    motion_detector_handle_state_transition(GARAGE_OCCUPIED);
 
 }

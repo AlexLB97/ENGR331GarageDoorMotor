@@ -16,6 +16,7 @@
 #include "lcd_layout.h"
 #include "lab_gpio.h"
 #include "lab_timers.h"
+#include "low_power.h"
 #include "motion_detector.h"
 #include "stm32f407xx.h"
 #include "event_queue.h"
@@ -95,6 +96,12 @@ static void servo_timer_cb(void)
             }
             else
             {
+                if (motion_detector_get_occupancy_state() == GARAGE_UNOCCUPIED)
+                {
+                    // Transitioning to active state any time the door opens ensure that the occupancy timeout will be running
+                    // and attempt to close the door again after a period of time.
+                    queue_add_event(transition_to_occupied_state_cb);
+                }
                 servo_angle += STEP_SIZE_DEGREES;
                 servo_set_angle(servo_angle);
             }
@@ -107,7 +114,13 @@ static void servo_timer_cb(void)
             {
                 servo_control_handle_state_transition(DOOR_STATE_CLOSED);
                 // Make sure break beam is disabled if it was not tripped
-                disable_break_beam();
+                disable_break_beam(); 
+
+                // Enter low power mode if the door closes and nobody is in the garage
+                if (motion_detector_get_occupancy_state() == GARAGE_UNOCCUPIED)
+                {
+                    low_power_schedule_sleep();
+                }
             }
             else
             {

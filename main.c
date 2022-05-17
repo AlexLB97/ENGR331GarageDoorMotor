@@ -17,6 +17,7 @@
 #include "lab_timers.h"
 #include "LCD.h"
 #include "lcd_layout.h"
+#include "low_power.h"
 #include "motion_detector.h"
 #include "motor_control.h"
 #include "servo_control.h"
@@ -31,7 +32,6 @@
 
 /* Static Functions */
 
-
 static void board_init(void)
 {
     // Enable clock for SYSCFG to allow configuration of interrupts
@@ -45,6 +45,10 @@ int main(void)
 {
     // Enable prerequisites for using the functionality in this project (clocks, mostly)
     board_init();
+
+    queue_init();
+
+    low_power_init();
 
     // Initialize the motor control system
     motor_control_init();

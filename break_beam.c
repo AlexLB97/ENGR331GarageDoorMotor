@@ -42,7 +42,7 @@ void EXTI15_10_IRQHandler(void)
     if (break_beam_enabled)
     {
         // Transition motor to stopped state
-        servo_control_handle_state_transition(DOOR_STATE_STOPPED);
+        servo_control_handle_state_transition(DOOR_STATE_OPENING);
         
         break_beam_enabled = false;
     }

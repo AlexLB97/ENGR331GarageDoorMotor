@@ -30,7 +30,7 @@
 #define SPIN_FORWARD_PIN       RED_LED
 #define SPIN_BACKWARDS_PIN     ORANGE_LED
 #define FAN_TIMER_PERIOD_MS    1000
-#define FAN_ON_THRESH_DEGREES  81
+#define FAN_ON_THRESH_DEGREES  75
 #define FAN_OFF_THRESH_DEGREES (FAN_ON_THRESH_DEGREES - 3)
 #define FAN_START_DUTY_PCT     20
 #define MAX_SPEED_TEMP         (FAN_ON_THRESH_DEGREES + 10)
@@ -121,6 +121,11 @@ static void update_fan_state_cb(void)
             fan_on = true;
             gpio_pin_set(GPIOD, SPIN_FORWARD_PIN);
             uint32_t duty_pct = FAN_START_DUTY_PCT + (DUTY_SLOPE * (temp - FAN_ON_THRESH_DEGREES));
+            if (duty_pct > 100)
+            {
+                // Prevent duty cycle from exceeding 100
+                duty_pct = 100;
+            }
             set_pwm_duty_cycle(duty_pct);
         }
         else if (temp > FAN_OFF_THRESH_DEGREES && fan_on)
