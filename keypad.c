@@ -173,6 +173,7 @@ static void evaluate_code(void)
         door_state_t next_state = servo_control_get_next_state();
         servo_control_handle_state_transition(next_state);
         queue_add_event(display_success_string_cb);
+        motion_detector_handle_state_transition(GARAGE_OCCUPIED);
         gpio_pin_set(GPIOE, GREEN_STATUS_LED);
     }
     else

@@ -25,8 +25,8 @@
 #define SERVO_PIN 8
 #define SERVO_AF_NUM 2
 #define SERVO_PWM_FREQ_HZ 50
-#define PSC_FREQ_HZ 180000
-#define POSITION_0_COMPARE_VAL 88
+#define PSC_FREQ_HZ 90000
+#define POSITION_0_COMPARE_VAL 45
 #define MAX_ANGLE 180
 #define CLOSED_ANGLE 35
 #define OPEN_ANGLE (CLOSED_ANGLE + 90)
@@ -170,11 +170,11 @@ static void servo_pwm_init(void)
     TIM3->CCMR2 &= ~(0x7u << 4);
     TIM3->CCMR2 |= (0x6u << 4);
     
-    // Set the PSC such that we have 1 degree resolution (180000 Hz)
+    // Set the PSC such that we have 1 degree resolution (90000 Hz)
     TIM3->PSC = (SYSCLK_FREQ_HZ / PSC_FREQ_HZ);
     
     // Set the ARR to set the period of the PWM
-    TIM3->ARR = ((SYSCLK_FREQ_HZ / (TIM3->PSC + 1)) / SERVO_PWM_FREQ_HZ) - 1;
+    TIM3->ARR = (PSC_FREQ_HZ / SERVO_PWM_FREQ_HZ) - 1;
 
     TIM3->CCR3 = POSITION_0_COMPARE_VAL; // Set initial duty cycle to 1ms pulse length for position 0
     
@@ -210,7 +210,7 @@ static void servo_set_angle(uint32_t angle)
         angle = MAX_ANGLE;
     }
 
-    TIM3->CCR3 = POSITION_0_COMPARE_VAL + (angle * 2);
+    TIM3->CCR3 = POSITION_0_COMPARE_VAL + (angle);
 }
 
 // Getter method for providing the current door state to other modules

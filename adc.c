@@ -68,7 +68,7 @@ int adc_get_temp(void)
 static void update_temp_and_light_values_cb(void)
 {
     int temp_f = adc_get_temp();
-    sprintf(temperature, "%dF", temp_f);
+    sprintf(temperature, "%*dF", 3, temp_f);
     LCD_write_string_at_addr(temperature, ON_WHILE_WRITING, TEMP_START_ADDR, (int)strlen(temperature));
 }
 
